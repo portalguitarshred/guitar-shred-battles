@@ -9,7 +9,7 @@ import Profile from './views/Profile';
 import Rankings from './views/Rankings';
 import Auth from './views/Auth';
 import Regulation from './views/Regulation';
-import { supabase, auth } from './lib/supabase';
+import { auth } from './lib/supabase';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -20,16 +20,21 @@ const App: React.FC = () => {
 
     const initSession = async () => {
       try {
-        console.log("🎸 Arena v1.1.4 - Production Architecture Verified");
-        if (supabase) {
-          const { data } = await auth.getSession();
+        console.log("🎸 Arena v1.1.7 - Hybrid Session Sync Active");
+        
+        // Sempre tenta pegar a sessão atual (real ou mock)
+        const { data } = await auth.getSession();
+        if (data?.session) {
           setSession(data.session);
-
-          const { data: subData } = auth.onAuthStateChange((_event, newSession) => {
-            setSession(newSession);
-          });
-          subscription = subData.subscription;
         }
+
+        // Se inscreve para mudanças de estado (login/logout)
+        const { data: subData } = auth.onAuthStateChange((_event, newSession) => {
+          console.log("Arena Auth Change:", _event);
+          setSession(newSession);
+        });
+        
+        subscription = subData.subscription;
       } catch (e) {
         console.error("Erro na Arena:", e);
       } finally {
@@ -49,7 +54,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
          <div className="w-16 h-16 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin" />
          <div className="text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-red-600 animate-pulse">Invocando Arena v1.1.4</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-red-600 animate-pulse">Sincronizando Arena...</p>
          </div>
       </div>
     );
