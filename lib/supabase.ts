@@ -21,10 +21,25 @@ export const supabase = isSupabaseConfigured
   : null;
 
 /**
- * Mock Session Management for Simulation Mode
+ * Mock Persistence Management for Simulation Mode
  */
 const MOCK_SESSION_KEY = 'shred_arena_mock_session';
+const MOCK_USERS_DB = 'shred_arena_users_db';
 const listeners: Set<(event: string, session: any) => void> = new Set();
+
+const getMockUsers = (): any[] => {
+  const saved = localStorage.getItem(MOCK_USERS_DB);
+  return saved ? JSON.parse(saved) : [];
+};
+
+const saveMockUser = (user: any) => {
+  const users = getMockUsers();
+  const exists = users.find(u => u.email === user.email);
+  if (!exists) {
+    users.push(user);
+    localStorage.setItem(MOCK_USERS_DB, JSON.stringify(users));
+  }
+};
 
 const getMockSession = () => {
   const saved = localStorage.getItem(MOCK_SESSION_KEY);
@@ -66,6 +81,7 @@ export const auth = {
           avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}` 
         }
       };
+      saveMockUser(mockUser);
       const session = setMockSession(mockUser);
       return { data: { user: mockUser, session }, error: null };
     }
@@ -83,10 +99,11 @@ export const auth = {
   },
   signIn: async (email: string, pass: string) => {
     if (!supabase) {
-      const mock = getMockSession();
-      if (mock && mock.user.email === email) {
-        listeners.forEach(l => l('SIGNED_IN', mock));
-        return { data: mock, error: null };
+      const users = getMockUsers();
+      const user = users.find(u => u.email === email);
+      if (user) {
+        const session = setMockSession(user);
+        return { data: session, error: null };
       }
       return { data: { user: null, session: null }, error: { message: "Identidade não encontrada. Registre-se primeiro." } };
     }
@@ -116,7 +133,10 @@ export const auth = {
     if (!supabase) {
       listeners.add(callback);
       const mock = getMockSession();
-      if (mock) setTimeout(() => callback('INITIAL_SESSION', mock), 10);
+      // Garantir que o app receba a sessão inicial se ela existir
+      if (mock) {
+        setTimeout(() => callback('INITIAL_SESSION', mock), 50);
+      }
       return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } };
     }
     return (supabase.auth as any).onAuthStateChange(callback);
