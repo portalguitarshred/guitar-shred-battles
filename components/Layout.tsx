@@ -1,10 +1,34 @@
 
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Flame, Trophy, User, Upload, Guitar, Bell, Search } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Flame, Trophy, User, Upload, Guitar, Wifi, WifiOff, LogOut, Code, Terminal } from 'lucide-react';
+import { isSupabaseConfigured, checkSupabaseConnection, auth } from '../lib/supabase';
 
-const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children, user }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  useEffect(() => {
+    const verify = async () => {
+      if (!isSupabaseConfigured) {
+        setDbStatus('offline');
+        return;
+      }
+      try {
+        const { success } = await checkSupabaseConnection();
+        setDbStatus(success ? 'online' : 'offline');
+      } catch (e) {
+        setDbStatus('offline');
+      }
+    };
+    verify();
+  }, []);
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    navigate('/');
+  };
 
   const navItems = [
     { path: '/', label: 'Arena', icon: <Flame className="w-5 h-5" /> },
@@ -12,12 +36,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { path: '/upload', label: 'Desafiar', icon: <Upload className="w-5 h-5" /> },
   ];
 
+  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Guerreiro';
+  const avatarUrl = user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}`;
+
   return (
     <div className="min-h-screen flex flex-col bg-[#050505] selection:bg-red-600 selection:text-white">
-      {/* Dynamic Background Ornament */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[500px] bg-red-600/5 blur-[120px] pointer-events-none z-0" />
 
-      <header className="sticky top-0 z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl px-6 py-4">
+      <header className="sticky top-0 z-[60] border-b border-white/5 bg-black/60 backdrop-blur-xl px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-12">
             <Link to="/" className="flex items-center gap-3 group">
@@ -47,24 +73,32 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-400 hover:text-white transition-colors">
-              <Search className="w-4 h-4" />
-            </button>
-            <button className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-400 hover:text-white transition-colors relative">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full border-2 border-black" />
-            </button>
-            <div className="w-px h-6 bg-white/10 mx-2 hidden sm:block" />
-            <Link to="/profile" className="flex items-center gap-3 group pl-2">
-              <div className="text-right hidden sm:block">
-                <p className="text-[10px] font-black text-white uppercase leading-none">Kiko Jr.</p>
-                <p className="text-[9px] font-bold text-red-500 uppercase tracking-widest mt-1">Diamond Rank</p>
+            <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
+              dbStatus === 'online' ? 'bg-green-500/5 border-green-500/20 text-green-500' : 
+              'bg-white/5 border-white/10 text-zinc-500'
+            }`}>
+              {dbStatus === 'online' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              {dbStatus === 'online' ? 'Arena Online' : 'Simulation Mode'}
+            </div>
+
+            {user ? (
+              <div className="flex items-center gap-4">
+                <Link to="/profile" className="flex items-center gap-3 group pl-2 border-l border-white/10 ml-2">
+                  <div className="text-right hidden sm:block">
+                    <p className="text-[10px] font-black text-white uppercase leading-none">{displayName}</p>
+                    <p className="text-[9px] font-bold text-red-500 uppercase tracking-widest mt-1 italic">Arena Profile</p>
+                  </div>
+                  <img src={avatarUrl} className="w-10 h-10 rounded-xl border-2 border-white/10 group-hover:border-red-600 transition-colors object-cover" alt="Profile" />
+                </Link>
+                <button onClick={handleLogout} className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-500 hover:text-red-500 transition-colors">
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
-              <div className="relative">
-                <img src="https://picsum.photos/id/64/100/100" className="w-10 h-10 rounded-xl border-2 border-white/10 group-hover:border-red-600 transition-colors object-cover" alt="Profile" />
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-black rounded-full" />
-              </div>
-            </Link>
+            ) : (
+              <Link to="/auth" className="bg-white text-black px-6 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest hover:bg-red-600 hover:text-white transition-all">
+                Entrar
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -73,16 +107,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {children}
       </main>
 
-      {/* Mobile Bar */}
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden bg-black/80 backdrop-blur-2xl border border-white/10 px-8 py-4 rounded-[2rem] flex items-center gap-10 shadow-2xl">
+      <footer className="fixed bottom-0 left-0 w-full p-4 flex justify-between items-center pointer-events-none z-[70] px-8">
+          <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-2xl">
+             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]" />
+             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">Live Status: v1.1.2 Verified</span>
+             <Terminal className="w-3 h-3 text-red-500 ml-2" />
+          </div>
+      </footer>
+
+      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] md:hidden bg-black/80 backdrop-blur-2xl border border-white/10 px-8 py-4 rounded-[2rem] flex items-center gap-10 shadow-2xl">
         {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`flex flex-col items-center gap-1 transition-all ${
-              location.pathname === item.path ? 'text-red-500 scale-110' : 'text-zinc-500'
-            }`}
-          >
+          <Link key={item.path} to={item.path} className={`flex flex-col items-center gap-1 transition-all ${location.pathname === item.path ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
             {item.icon}
           </Link>
         ))}
