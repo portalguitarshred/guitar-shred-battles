@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Flame, Trophy, User, Upload, Guitar, Wifi, WifiOff, LogOut, Code, Terminal } from 'lucide-react';
+import { Flame, Trophy, User, Upload, Guitar, Wifi, WifiOff, LogOut, Terminal } from 'lucide-react';
 import { isSupabaseConfigured, checkSupabaseConnection, auth } from '../lib/supabase';
 
 const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children, user }) => {
@@ -16,8 +16,8 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
         return;
       }
       try {
-        const { success } = await checkSupabaseConnection();
-        setDbStatus(success ? 'online' : 'offline');
+        const result = await checkSupabaseConnection();
+        setDbStatus(result.success ? 'online' : 'offline');
       } catch (e) {
         setDbStatus('offline');
       }
@@ -110,21 +110,10 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
       <footer className="fixed bottom-0 left-0 w-full p-4 flex justify-between items-center pointer-events-none z-[70] px-8">
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-2xl">
              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]" />
-             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">Live Status: v1.1.2 Verified</span>
+             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">System: v1.1.3 Stable</span>
              <Terminal className="w-3 h-3 text-red-500 ml-2" />
           </div>
       </footer>
-
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] md:hidden bg-black/80 backdrop-blur-2xl border border-white/10 px-8 py-4 rounded-[2rem] flex items-center gap-10 shadow-2xl">
-        {navItems.map((item) => (
-          <Link key={item.path} to={item.path} className={`flex flex-col items-center gap-1 transition-all ${location.pathname === item.path ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
-            {item.icon}
-          </Link>
-        ))}
-        <Link to="/profile">
-           <User className={`w-5 h-5 ${location.pathname === '/profile' ? 'text-red-500' : 'text-zinc-500'}`} />
-        </Link>
-      </nav>
     </div>
   );
 };
