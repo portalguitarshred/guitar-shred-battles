@@ -1,54 +1,87 @@
 
 import React, { useEffect, useState } from 'react';
-import { Trophy, Target, Zap, Instagram, Award, Star, Edit3, Play, Loader2, Link2 } from 'lucide-react';
+import { Trophy, Target, Zap, Instagram, Award, Star, Edit3, Play, Loader2, Link2, X, Save, Globe } from 'lucide-react';
 import { supabase, isSupabaseConfigured, auth, getMockVideos } from '../lib/supabase';
 
 const Profile: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [userVideos, setUserVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  
+  const [editForm, setEditForm] = useState({
+    display_name: '',
+    instagram: '',
+    website: ''
+  });
+
+  const fetchProfileData = async () => {
+    setLoading(true);
+    try {
+      const { data } = await auth.getUser();
+      if (data?.user) {
+        setUser(data.user);
+        setEditForm({
+          display_name: data.user.user_metadata?.display_name || '',
+          instagram: data.user.user_metadata?.instagram || '',
+          website: data.user.user_metadata?.website || ''
+        });
+        
+        let allVideos: any[] = [];
+
+        if (isSupabaseConfigured && supabase) {
+          const { data: videos } = await supabase
+            .from('battle_videos')
+            .select('*')
+            .eq('author_id', data.user.id)
+            .order('created_at', { ascending: false });
+
+          if (videos) allVideos = [...videos];
+        }
+
+        const mockVideos = getMockVideos().filter(v => v.author_id === data.user.id);
+        allVideos = [...allVideos, ...mockVideos];
+
+        const uniqueVideos = Array.from(new Set(allVideos.map(v => v.id)))
+          .map(id => allVideos.find(v => v.id === id))
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        setUserVideos(uniqueVideos);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar perfil:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProfileData = async () => {
-      setLoading(true);
-      try {
-        const { data } = await auth.getUser();
-        if (data?.user) {
-          setUser(data.user);
-          
-          let allVideos: any[] = [];
-
-          // 1. Busca vídeos reais do Supabase se disponível
-          if (isSupabaseConfigured && supabase) {
-            const { data: videos } = await supabase
-              .from('battle_videos')
-              .select('*')
-              .eq('author_id', data.user.id)
-              .order('created_at', { ascending: false });
-
-            if (videos) allVideos = [...videos];
-          }
-
-          // 2. Busca vídeos do MockDB (Simulação)
-          const mockVideos = getMockVideos().filter(v => v.author_id === data.user.id);
-          allVideos = [...allVideos, ...mockVideos];
-
-          // Remove duplicatas e ordena por data
-          const uniqueVideos = Array.from(new Set(allVideos.map(v => v.id)))
-            .map(id => allVideos.find(v => v.id === id))
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-          setUserVideos(uniqueVideos);
-        }
-      } catch (e) {
-        console.error("Erro ao carregar perfil:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchProfileData();
   }, []);
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaveLoading(true);
+    try {
+      const { data, error } = await auth.updateUser({
+        data: {
+          display_name: editForm.display_name,
+          instagram: editForm.instagram,
+          website: editForm.website
+        }
+      });
+
+      if (error) throw error;
+      
+      setUser(data.user);
+      setIsEditing(false);
+    } catch (err: any) {
+      alert("Erro ao atualizar perfil: " + err.message);
+    } finally {
+      setSaveLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -78,10 +111,78 @@ const Profile: React.FC = () => {
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Shredder';
   const avatarUrl = user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}`;
+  const instagram = user?.user_metadata?.instagram;
+  const website = user?.user_metadata?.website;
 
   return (
     <div className="space-y-12 py-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
       
+      {/* MODAL DE EDIÇÃO */}
+      {isEditing && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-[#0d0d0d] border border-white/10 w-full max-w-lg rounded-[3rem] p-10 shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/5 blur-3xl rounded-full" />
+             
+             <div className="flex justify-between items-center mb-8">
+                <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white">Editar Identidade</h2>
+                <button onClick={() => setIsEditing(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                   <X className="w-6 h-6 text-zinc-500" />
+                </button>
+             </div>
+
+             <form onSubmit={handleUpdateProfile} className="space-y-6">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase text-zinc-600 ml-4 tracking-widest italic">Nome de Artista</label>
+                  <input 
+                    type="text" 
+                    value={editForm.display_name}
+                    onChange={e => setEditForm({...editForm, display_name: e.target.value})}
+                    placeholder="EX: SLASH MASTER"
+                    className="w-full bg-black border border-white/5 rounded-2xl py-4 px-6 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase text-zinc-600 ml-4 tracking-widest italic">Instagram Handle</label>
+                  <div className="relative group">
+                    <Instagram className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input 
+                      type="text" 
+                      value={editForm.instagram}
+                      onChange={e => setEditForm({...editForm, instagram: e.target.value})}
+                      placeholder="@seu_perfil"
+                      className="w-full bg-black border border-white/5 rounded-2xl py-4 pl-14 pr-4 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase text-zinc-600 ml-4 tracking-widest italic">Site / Link Externo</label>
+                  <div className="relative group">
+                    <Globe className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input 
+                      type="url" 
+                      value={editForm.website}
+                      onChange={e => setEditForm({...editForm, website: e.target.value})}
+                      placeholder="https://meusite.com"
+                      className="w-full bg-black border border-white/5 rounded-2xl py-4 pl-14 pr-4 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white"
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={saveLoading}
+                  className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase italic tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-3 mt-4 shadow-xl disabled:opacity-50"
+                >
+                  {saveLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" /> Salvar Alterações</>}
+                </button>
+             </form>
+          </div>
+        </div>
+      )}
+
       {/* BENTO HEADER CARD */}
       <section className="relative bg-[#0d0d0d] border border-white/5 rounded-[3rem] p-10 overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-red-600/5 via-transparent to-transparent pointer-events-none" />
@@ -107,10 +208,18 @@ const Profile: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap gap-6 pt-2">
-               <div className="flex items-center gap-3 text-zinc-500 hover:text-white transition-colors cursor-pointer">
-                  <Instagram className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">@{displayName.toLowerCase().replace(/\s+/g, '_')}</span>
-               </div>
+               {instagram && (
+                 <a href={`https://instagram.com/${instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-zinc-500 hover:text-white transition-colors cursor-pointer group">
+                    <Instagram className="w-5 h-5 group-hover:text-red-500 transition-colors" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{instagram.startsWith('@') ? instagram : `@${instagram}`}</span>
+                 </a>
+               )}
+               {website && (
+                 <a href={website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-zinc-500 hover:text-white transition-colors cursor-pointer group">
+                    <Globe className="w-5 h-5 group-hover:text-red-500 transition-colors" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Web Link</span>
+                 </a>
+               )}
                <div className="flex items-center gap-3 text-zinc-500">
                   <Link2 className="w-5 h-5" />
                   <span className="text-[10px] font-black uppercase tracking-widest">ID: {user.id.slice(0,8).toUpperCase()}</span>
@@ -123,7 +232,7 @@ const Profile: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-3 w-full lg:w-auto">
-             <button className="flex items-center justify-center gap-3 bg-white text-black px-8 py-4 rounded-2xl font-black uppercase italic tracking-widest hover:scale-105 transition-all">
+             <button onClick={() => setIsEditing(true)} className="flex items-center justify-center gap-3 bg-white text-black px-8 py-4 rounded-2xl font-black uppercase italic tracking-widest hover:scale-105 transition-all">
                 <Edit3 className="w-4 h-4" /> Editar Perfil
              </button>
           </div>
