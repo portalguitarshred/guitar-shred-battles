@@ -52,29 +52,38 @@ const Upload: React.FC = () => {
     }
 
     const authorName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0];
-    const videoData = {
-      id: 'v-' + Math.random().toString(36).substr(2, 9),
-      author_id: currentUser.id,
-      author_name: authorName,
-      video_url: youtubeUrl,
-      thumbnail_url: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-      category: form.category,
-      style: form.style,
-      skill_level: form.skillLevel,
-      votes: 0,
-      created_at: new Date().toISOString()
-    };
     
     try {
       if (isSupabaseConfigured && supabase) {
+        // No Supabase Real, deixamos o banco gerar o UUID automaticamente
         const { error: videoError } = await supabase
           .from('battle_videos')
-          .insert([videoData]);
+          .insert([{
+            author_id: currentUser.id,
+            author_name: authorName,
+            video_url: youtubeUrl,
+            thumbnail_url: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+            category: form.category,
+            style: form.style,
+            skill_level: form.skillLevel,
+            votes: 0
+          }]);
 
         if (videoError) throw videoError;
       } else {
-        // Modo Simulação
-        saveMockVideo(videoData);
+        // Modo Simulação (Gera ID manual apenas localmente)
+        saveMockVideo({
+          id: 'v-' + Math.random().toString(36).substr(2, 9),
+          author_id: currentUser.id,
+          author_name: authorName,
+          video_url: youtubeUrl,
+          thumbnail_url: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+          category: form.category,
+          style: form.style,
+          skill_level: form.skillLevel,
+          votes: 0,
+          created_at: new Date().toISOString()
+        });
       }
 
       setStep(3); // Sucesso
