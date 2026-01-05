@@ -21,10 +21,26 @@ export const supabase = isSupabaseConfigured
   : null;
 
 /**
+ * Mock Session Management for Simulation Mode
+ */
+const MOCK_SESSION_KEY = 'shred_arena_mock_session';
+
+const getMockSession = () => {
+  const saved = localStorage.getItem(MOCK_SESSION_KEY);
+  return saved ? JSON.parse(saved) : null;
+};
+
+const setMockSession = (user: any) => {
+  const session = { user, access_token: 'mock_token_' + Date.now(), expires_at: Date.now() + 3600000 };
+  localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(session));
+  return session;
+};
+
+/**
  * Verifica a conectividade com o Supabase.
  */
 export async function checkSupabaseConnection() {
-  if (!supabase) return { success: false, message: "Offline" };
+  if (!supabase) return { success: false, message: "Modo Simulação" };
   try {
     const { error } = await supabase.from('battle_videos').select('id').limit(1);
     if (error && error.code !== 'PGRST116') throw error;
@@ -35,11 +51,22 @@ export async function checkSupabaseConnection() {
 }
 
 /**
- * Helper unificado para autenticação.
+ * Helper unificado para autenticação (Híbrido)
  */
 export const auth = {
   signUp: async (email: string, pass: string, name: string) => {
-    if (!supabase) return { data: { user: null, session: null }, error: { message: "Modo Simulação" } };
+    if (!supabase) {
+      const mockUser = {
+        id: 'dev-' + Math.random().toString(36).substr(2, 9),
+        email,
+        user_metadata: { 
+          display_name: name, 
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}` 
+        }
+      };
+      const session = setMockSession(mockUser);
+      return { data: { user: mockUser, session }, error: null };
+    }
     return await (supabase.auth as any).signUp({
       email,
       password: pass,
@@ -53,23 +80,41 @@ export const auth = {
     });
   },
   signIn: async (email: string, pass: string) => {
-    if (!supabase) return { data: { user: null, session: null }, error: { message: "Modo Simulação" } };
+    if (!supabase) {
+      const mock = getMockSession();
+      if (mock && mock.user.email === email) {
+        return { data: mock, error: null };
+      }
+      return { data: { user: null, session: null }, error: { message: "Credenciais inválidas no modo simulação." } };
+    }
     return await (supabase.auth as any).signInWithPassword({ email, password: pass });
   },
   signOut: async () => {
+    localStorage.removeItem(MOCK_SESSION_KEY);
     if (!supabase) return;
     return await (supabase.auth as any).signOut();
   },
   getUser: async () => {
-    if (!supabase) return { data: { user: null }, error: null };
+    if (!supabase) {
+      const mock = getMockSession();
+      return { data: { user: mock?.user || null }, error: null };
+    }
     return await (supabase.auth as any).getUser();
   },
   getSession: async () => {
-    if (!supabase) return { data: { session: null }, error: null };
+    if (!supabase) {
+      const mock = getMockSession();
+      return { data: { session: mock }, error: null };
+    }
     return await (supabase.auth as any).getSession();
   },
   onAuthStateChange: (callback: (event: any, session: any) => void) => {
-    if (!supabase) return { data: { subscription: null } };
+    if (!supabase) {
+      // No modo simulação, apenas emitimos o estado atual uma vez
+      const mock = getMockSession();
+      setTimeout(() => callback('SIGNED_IN', mock), 100);
+      return { data: { subscription: { unsubscribe: () => {} } } };
+    }
     return (supabase.auth as any).onAuthStateChange(callback);
   }
 };
