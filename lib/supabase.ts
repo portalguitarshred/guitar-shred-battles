@@ -22,7 +22,6 @@ export const supabase = isSupabaseConfigured
 
 /**
  * Verifica a conectividade com o Supabase.
- * Exportado explicitamente como função para evitar erros de resolução de símbolo.
  */
 export async function checkSupabaseConnection() {
   if (!supabase) return { success: false, message: "Offline" };
@@ -40,7 +39,7 @@ export async function checkSupabaseConnection() {
  */
 export const auth = {
   signUp: async (email: string, pass: string, name: string) => {
-    if (!supabase) return { error: { message: "Arena em modo simulação." } };
+    if (!supabase) return { data: { user: null, session: null }, error: { message: "Modo Simulação" } };
     return await (supabase.auth as any).signUp({
       email,
       password: pass,
@@ -54,7 +53,7 @@ export const auth = {
     });
   },
   signIn: async (email: string, pass: string) => {
-    if (!supabase) return { error: { message: "Arena em modo simulação." } };
+    if (!supabase) return { data: { user: null, session: null }, error: { message: "Modo Simulação" } };
     return await (supabase.auth as any).signInWithPassword({ email, password: pass });
   },
   signOut: async () => {
