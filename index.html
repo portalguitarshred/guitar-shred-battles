@@ -4,14 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guitar Shred Battles | v1.1.5</title>
+    <title>Guitar Shred Battles | v1.1.6</title>
     
     <script>
       window.process = { env: { NODE_ENV: 'production' } };
       window.addEventListener('error', function(e) {
         console.error('Arena Runtime Error:', e);
         if (e.message && (e.message.includes('Script error') || e.message.includes('importmap') || e.message.includes('ReactDOM'))) {
-           document.body.innerHTML = '<div style="background:#050505;color:#ef4444;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;text-align:center;padding:20px;"><h1>⚠️ ARENA CRASHED</h1><p>Erro Crítico de Sincronização (v1.1.5).</p><button onclick="location.reload(true)" style="background:#ef4444;color:white;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:20px;">REBOOT SYSTEM</button></div>';
+           document.body.innerHTML = '<div style="background:#050505;color:#ef4444;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;text-align:center;padding:20px;"><h1>⚠️ ARENA CRASHED</h1><p>Erro Crítico de Sincronização (v1.1.6).</p><button onclick="location.reload(true)" style="background:#ef4444;color:white;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:20px;">REBOOT SYSTEM</button></div>';
         }
       });
     </script>
@@ -30,11 +30,17 @@
         #root { height: 100vh; overflow-y: auto; }
         .shred-glow { filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.4)); }
         
-        /* Custom scrollbar for better aesthetics */
         #root::-webkit-scrollbar { width: 4px; }
         #root::-webkit-scrollbar-track { background: #050505; }
         #root::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
         #root::-webkit-scrollbar-thumb:hover { background: #ef4444; }
+
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+        .animate-shake { animation: shake 0.2s ease-in-out 0s 2; }
     </style>
 
 <script type="importmap">
