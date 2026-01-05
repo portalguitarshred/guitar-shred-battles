@@ -98,9 +98,9 @@ const Upload: React.FC = () => {
             </div>
             
             <div className="relative group">
-              <div className="absolute inset-0 bg-red-600/5 blur-xl group-focus-within:bg-red-600/10 transition-all" />
-              <div className="relative bg-black border border-white/5 rounded-[2rem] p-3 flex items-center shadow-inner">
-                <LinkIcon className="w-5 h-5 text-zinc-600 ml-6" />
+              <div className="absolute inset-0 bg-red-600/10 blur-2xl group-focus-within:bg-red-600/20 transition-all rounded-[2rem]" />
+              <div className="relative bg-black border-2 border-red-600/40 focus-within:border-red-600 rounded-[2rem] p-3 flex items-center shadow-[0_0_20px_rgba(220,38,38,0.1)] transition-all duration-300">
+                <LinkIcon className="w-5 h-5 text-red-500/70 ml-6 group-focus-within:text-red-500 transition-colors" />
                 <input 
                   type="text" 
                   value={youtubeUrl}
