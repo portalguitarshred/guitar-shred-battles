@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -8,23 +9,24 @@ import Profile from './views/Profile';
 import Rankings from './views/Rankings';
 import Auth from './views/Auth';
 import Regulation from './views/Regulation';
-import { supabase } from './lib/supabase';
+import { supabase, auth } from './lib/supabase';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Fix: Use the auth helper instead of direct supabase.auth access to resolve type errors.
   useEffect(() => {
     let subscription: any = null;
 
     const initSession = async () => {
       try {
-        console.log("🎸 Arena v1.1.2 - Deploy Sincronizado");
+        console.log("🎸 Arena v1.1.3 - Final Build");
         if (supabase) {
-          const { data } = await supabase.auth.getSession();
+          const { data } = await auth.getSession();
           setSession(data.session);
 
-          const { data: subData } = supabase.auth.onAuthStateChange((_event, newSession) => {
+          const { data: subData } = auth.onAuthStateChange((_event, newSession) => {
             setSession(newSession);
           });
           subscription = subData.subscription;
@@ -48,8 +50,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
          <div className="w-16 h-16 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin" />
          <div className="text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-red-600 animate-pulse">Sincronizando v1.1.2</p>
-            <p className="text-[8px] text-zinc-700 mt-2 uppercase tracking-widest font-bold">Limpando cache de renderização...</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-red-600 animate-pulse">Building Arena v1.1.3</p>
          </div>
       </div>
     );
