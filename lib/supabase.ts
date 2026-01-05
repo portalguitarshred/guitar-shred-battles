@@ -35,11 +35,13 @@ export const getMockUsers = (): any[] => {
 
 const saveMockUser = (user: any) => {
   const users = getMockUsers();
-  const exists = users.find(u => u.email === user.email);
-  if (!exists) {
+  const index = users.findIndex(u => u.email === user.email);
+  if (index === -1) {
     users.push(user);
-    localStorage.setItem(MOCK_USERS_DB, JSON.stringify(users));
+  } else {
+    users[index] = user;
   }
+  localStorage.setItem(MOCK_USERS_DB, JSON.stringify(users));
 };
 
 export const getMockVideos = (): any[] => {
@@ -121,6 +123,25 @@ export const auth = {
       return { data: { user: null, session: null }, error: { message: "Identidade não encontrada. Registre-se primeiro." } };
     }
     return await (supabase.auth as any).signInWithPassword({ email, password: pass });
+  },
+  updateUser: async (data: any) => {
+    if (!supabase) {
+      const currentSession = getMockSession();
+      if (!currentSession) return { data: null, error: { message: "No session" } };
+      
+      const updatedUser = {
+        ...currentSession.user,
+        user_metadata: {
+          ...currentSession.user.user_metadata,
+          ...data.data
+        }
+      };
+      
+      saveMockUser(updatedUser);
+      setMockSession(updatedUser);
+      return { data: { user: updatedUser }, error: null };
+    }
+    return await (supabase.auth as any).updateUser(data);
   },
   signOut: async () => {
     localStorage.removeItem(MOCK_SESSION_KEY);
