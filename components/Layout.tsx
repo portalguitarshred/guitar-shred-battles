@@ -50,7 +50,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
               <div className="bg-red-600 p-2 rounded-xl group-hover:shred-glow transition-all rotate-[-5deg] group-hover:rotate-0">
                 <Guitar className="w-5 h-5 text-white" />
               </div>
-              <span className="font-black text-2xl tracking-tighter uppercase italic leading-none">
+              <span className="font-black text-2xl tracking-tighter uppercase italic leading-none text-white">
                 SHRED<span className="text-red-600">BATTLES</span>
               </span>
             </Link>
@@ -110,7 +110,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
       <footer className="fixed bottom-0 left-0 w-full p-4 flex justify-between items-center pointer-events-none z-[70] px-8">
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-2xl">
              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]" />
-             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">System: v1.1.3 Stable</span>
+             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">Architecture: v1.1.4 Stable</span>
              <Terminal className="w-3 h-3 text-red-500 ml-2" />
           </div>
       </footer>
