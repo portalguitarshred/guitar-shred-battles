@@ -10,23 +10,22 @@ const Profile: React.FC = () => {
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      if (!isSupabaseConfigured || !supabase) {
-        setLoading(false);
-        return;
-      }
-
+      setLoading(true);
       try {
         const { data } = await auth.getUser();
         if (data?.user) {
           setUser(data.user);
           
-          const { data: videos } = await supabase
-            .from('battle_videos')
-            .select('*')
-            .eq('author_id', data.user.id)
-            .order('created_at', { ascending: false });
+          // Só tenta buscar vídeos reais se o Supabase estiver ON
+          if (isSupabaseConfigured && supabase) {
+            const { data: videos } = await supabase
+              .from('battle_videos')
+              .select('*')
+              .eq('author_id', data.user.id)
+              .order('created_at', { ascending: false });
 
-          if (videos) setUserVideos(videos);
+            if (videos) setUserVideos(videos);
+          }
         }
       } catch (e) {
         console.error("Erro ao carregar perfil:", e);
@@ -90,22 +89,22 @@ const Profile: React.FC = () => {
                   <span className="bg-red-600/10 border border-red-600/20 text-red-500 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em]">Competidor Verificado</span>
                </div>
                <p className="text-zinc-400 font-medium max-w-xl text-lg leading-relaxed italic border-l-2 border-red-600 pl-6">
-                  Um novo desafiante acaba de entrar na arena Shred Battles. Que os solos comecem.
+                  Seja bem-vindo de volta à Arena, {displayName}. Sua jornada técnica continua.
                </p>
             </div>
 
             <div className="flex flex-wrap gap-6 pt-2">
                <div className="flex items-center gap-3 text-zinc-500 hover:text-white transition-colors cursor-pointer">
                   <Instagram className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">@{displayName.toLowerCase().replace(' ', '_')}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">@{displayName.toLowerCase().replace(/\s+/g, '_')}</span>
                </div>
                <div className="flex items-center gap-3 text-zinc-500">
                   <Link2 className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Shred.Link/ID_{user.id.slice(0,4).toUpperCase()}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">ID: {user.id.slice(0,8).toUpperCase()}</span>
                </div>
                <div className="flex items-center gap-3 text-zinc-500">
                   <Star className="w-5 h-5 text-yellow-500" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Elite Member</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Level 1 Shredder</span>
                </div>
             </div>
           </div>
@@ -118,7 +117,7 @@ const Profile: React.FC = () => {
         </div>
       </section>
 
-      {/* MEUS VÍDEOS REAIS */}
+      {/* HISTÓRICO */}
       <section className="space-y-6">
         <div className="flex justify-between items-center px-4">
            <h2 className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3 text-white">
@@ -136,19 +135,6 @@ const Profile: React.FC = () => {
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                        <Play className="w-10 h-10 text-white fill-current" />
                     </div>
-                    <div className="absolute top-3 left-3 bg-red-600/90 backdrop-blur-md px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-white border border-white/10">
-                       {vid.category}
-                    </div>
-                 </div>
-                 <div className="p-5 space-y-3">
-                    <div className="flex justify-between items-center">
-                       <span className="text-[10px] font-black text-white uppercase italic">{vid.style}</span>
-                       <span className="text-[9px] font-black text-zinc-600 uppercase italic tracking-tighter">{new Date(vid.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                       <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Duelo Ativo // Em Votação</p>
-                    </div>
                  </div>
               </div>
             ))}
@@ -159,7 +145,7 @@ const Profile: React.FC = () => {
                 <Play className="w-6 h-6 text-zinc-700" />
              </div>
              <div className="space-y-2">
-                <h3 className="text-xl font-black uppercase italic text-zinc-500 tracking-tighter">Arena em Silêncio</h3>
+                <h3 className="text-xl font-black uppercase italic text-zinc-500 tracking-tighter">Silêncio na Arena</h3>
                 <p className="text-zinc-600 text-[10px] uppercase tracking-widest max-w-xs mx-auto font-black italic">Sua guitarra ainda não rugiu nestas terras. A glória te espera.</p>
              </div>
              <button onClick={() => window.location.hash = '#/upload'} className="inline-block bg-red-600 text-white px-8 py-4 rounded-xl font-black uppercase italic tracking-widest hover:scale-105 transition-all shadow-lg shadow-red-600/20">
