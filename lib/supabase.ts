@@ -1,29 +1,72 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import { createClient } from '@supabase/supabase-js';
 
-// No ambiente Vercel/Vite, usamos import.meta.env ou process.env dependendo do bundler.
-// Esta implementação cobre ambos os casos para garantir que a tela não fique preta.
-const getEnv = (key: string) => {
-  if (typeof process !== 'undefined' && process.env && process.env[key]) {
-    return process.env[key];
+const getEnv = (key: string): string | undefined => {
+  try {
+    const val = (window as any).process?.env?.[key] || (process as any).env?.[key];
+    if (val === `process.env.${key}` || !val) return undefined;
+    return val;
+  } catch (e) {
+    return undefined;
   }
-  // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-    // @ts-ignore
-    return import.meta.env[key];
-  }
-  return undefined;
 };
 
 const supabaseUrl = getEnv('SUPABASE_URL');
 const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('https://'));
 
 export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl as string, supabaseAnonKey as string)
+  ? createClient(supabaseUrl!, supabaseAnonKey!)
   : null;
 
-if (!isSupabaseConfigured) {
-  console.warn("ShredBattles: Supabase não detectado. Iniciando em modo de simulação (Mock).");
+// Função exportada explicitamente para evitar erro de build
+export async function checkSupabaseConnection() {
+  if (!supabase) return { success: false, message: "Offline" };
+  try {
+    const { error } = await supabase.from('battle_videos').select('id').limit(1);
+    if (error && error.code !== 'PGRST116') throw error;
+    return { success: true, message: "Conectado" };
+  } catch (err: any) {
+    return { success: false, message: err.message };
+  }
 }
+
+// Fix: Wrapped Supabase auth calls with type assertions to resolve "does not exist on type SupabaseAuthClient" errors
+// and added missing getSession and onAuthStateChange helpers.
+export const auth = {
+  signUp: async (email: string, pass: string, name: string) => {
+    if (!supabase) return { error: { message: "Arena em modo simulação." } };
+    return await (supabase.auth as any).signUp({
+      email,
+      password: pass,
+      options: {
+        data: { 
+          display_name: name, 
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}` 
+        },
+        emailRedirectTo: window.location.origin
+      }
+    });
+  },
+  signIn: async (email: string, pass: string) => {
+    if (!supabase) return { error: { message: "Arena em modo simulação." } };
+    return await (supabase.auth as any).signInWithPassword({ email, password: pass });
+  },
+  signOut: async () => {
+    if (!supabase) return;
+    return await (supabase.auth as any).signOut();
+  },
+  getUser: async () => {
+    if (!supabase) return { data: { user: null }, error: null };
+    return await (supabase.auth as any).getUser();
+  },
+  getSession: async () => {
+    if (!supabase) return { data: { session: null }, error: null };
+    return await (supabase.auth as any).getSession();
+  },
+  onAuthStateChange: (callback: (event: any, session: any) => void) => {
+    if (!supabase) return { data: { subscription: null } };
+    return (supabase.auth as any).onAuthStateChange(callback);
+  }
+};
