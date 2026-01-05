@@ -62,7 +62,11 @@ const getMockSession = () => {
 };
 
 const setMockSession = (user: any) => {
-  const session = { user, access_token: 'mock_token_' + Date.now(), expires_at: Date.now() + 3600000 };
+  const session = { 
+    user, 
+    access_token: 'mock_token_' + Date.now(), 
+    expires_at: Math.floor(Date.now() / 1000) + 3600 
+  };
   localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(session));
   listeners.forEach(l => l('SIGNED_IN', session));
   return session;
@@ -84,10 +88,17 @@ export async function checkSupabaseConnection() {
 
 /**
  * Helper unificado para autenticação (Híbrido)
+ * Este objeto abstrai se estamos salvando localmente ou no banco real.
  */
 export const auth = {
   signUp: async (email: string, pass: string, name: string) => {
     if (!supabase) {
+      // MOCK SIGNUP
+      const users = getMockUsers();
+      if (users.find(u => u.email === email)) {
+        return { data: null, error: { message: "Este e-mail já está em uso na arena local." } };
+      }
+      
       const mockUser = {
         id: 'dev-' + Math.random().toString(36).substr(2, 9),
         email,
@@ -100,7 +111,9 @@ export const auth = {
       const session = setMockSession(mockUser);
       return { data: { user: mockUser, session }, error: null };
     }
-    return await (supabase.auth as any).signUp({
+
+    // REAL SUPABASE SIGNUP
+    return await supabase.auth.signUp({
       email,
       password: pass,
       options: {
@@ -112,66 +125,83 @@ export const auth = {
       }
     });
   },
+
   signIn: async (email: string, pass: string) => {
     if (!supabase) {
+      // MOCK SIGNIN
       const users = getMockUsers();
       const user = users.find(u => u.email === email);
       if (user) {
+        // Em um sistema real haveria verificação de senha, aqui simulamos sucesso.
         const session = setMockSession(user);
-        return { data: session, error: null };
+        // Fix: Changed the mock return structure to match Supabase's { data: { user, session }, error } structure
+        return { data: { user, session }, error: null };
       }
-      return { data: { user: null, session: null }, error: { message: "Identidade não encontrada. Registre-se primeiro." } };
+      return { data: { user: null, session: null }, error: { message: "Identidade não encontrada. Verifique seu e-mail ou cadastre-se." } };
     }
-    return await (supabase.auth as any).signInWithPassword({ email, password: pass });
+
+    // REAL SUPABASE SIGNIN
+    return await supabase.auth.signInWithPassword({ email, password: pass });
   },
-  updateUser: async (data: any) => {
+
+  updateUser: async (attributes: any) => {
     if (!supabase) {
+      // MOCK UPDATE
       const currentSession = getMockSession();
-      if (!currentSession) return { data: null, error: { message: "No session" } };
+      if (!currentSession) return { data: null, error: { message: "Sessão expirada." } };
       
       const updatedUser = {
         ...currentSession.user,
         user_metadata: {
           ...currentSession.user.user_metadata,
-          ...data.data
+          ...(attributes.data || {})
         }
       };
       
       saveMockUser(updatedUser);
-      setMockSession(updatedUser);
-      return { data: { user: updatedUser }, error: null };
+      const session = setMockSession(updatedUser);
+      return { data: { user: updatedUser, session }, error: null };
     }
-    return await (supabase.auth as any).updateUser(data);
+
+    // REAL SUPABASE UPDATE
+    return await supabase.auth.updateUser(attributes);
   },
+
   signOut: async () => {
-    localStorage.removeItem(MOCK_SESSION_KEY);
-    listeners.forEach(l => l('SIGNED_OUT', null));
-    if (!supabase) return;
-    return await (supabase.auth as any).signOut();
+    if (!supabase) {
+      localStorage.removeItem(MOCK_SESSION_KEY);
+      listeners.forEach(l => l('SIGNED_OUT', null));
+      return { error: null };
+    }
+    return await supabase.auth.signOut();
   },
+
   getUser: async () => {
     if (!supabase) {
       const mock = getMockSession();
       return { data: { user: mock?.user || null }, error: null };
     }
-    return await (supabase.auth as any).getUser();
+    return await supabase.auth.getUser();
   },
+
   getSession: async () => {
     if (!supabase) {
       const mock = getMockSession();
       return { data: { session: mock }, error: null };
     }
-    return await (supabase.auth as any).getSession();
+    return await supabase.auth.getSession();
   },
+
   onAuthStateChange: (callback: (event: any, session: any) => void) => {
     if (!supabase) {
       listeners.add(callback);
       const mock = getMockSession();
       if (mock) {
+        // Notifica o estado inicial com um pequeno delay
         setTimeout(() => callback('INITIAL_SESSION', mock), 50);
       }
       return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } };
     }
-    return (supabase.auth as any).onAuthStateChange(callback);
+    return supabase.auth.onAuthStateChange(callback);
   }
 };
