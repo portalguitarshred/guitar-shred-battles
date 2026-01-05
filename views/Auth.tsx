@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Guitar, Mail, Lock, User, ArrowRight, ShieldCheck, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Guitar, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, CheckCircle2, ShieldOff } from 'lucide-react';
 import { auth, isSupabaseConfigured } from '../lib/supabase';
 
 const Auth: React.FC = () => {
@@ -12,7 +12,6 @@ const Auth: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   
-  // Se não houver redirect, manda para o profile após login
   const redirectPath = searchParams.get('redirect') || '/profile';
 
   const [formData, setFormData] = useState({
@@ -28,11 +27,6 @@ const Auth: React.FC = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSupabaseConfigured) {
-      setError("Atenção: A Arena está em MODO SIMULAÇÃO. Cadastros reais não são permitidos aqui.");
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
@@ -41,25 +35,27 @@ const Auth: React.FC = () => {
       if (isLogin) {
         const result = await auth.signIn(formData.email, formData.password);
         if (result.error) throw result.error;
-        if (result.data?.user) {
-          navigate(redirectPath);
+        if (result.data?.session) {
+          // Pequeno delay para efeito dramático de login
+          setTimeout(() => navigate(redirectPath), 500);
         }
       } else {
         if (!formData.name) throw new Error("Escolha um Nome de Artista.");
-        if (formData.password.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres.");
+        if (formData.password.length < 6) throw new Error("Senha muito curta (min 6 carac).");
         
         const result = await auth.signUp(formData.email, formData.password, formData.name);
         if (result.error) throw result.error;
         
-        setSuccessMsg("Identidade forjada! Verifique seu e-mail para confirmar o cadastro e poder entrar na arena.");
-        setIsLogin(true);
+        if (!isSupabaseConfigured) {
+          setSuccessMsg("Perfil Simulador Ativado! Você será logado automaticamente.");
+          setTimeout(() => navigate(redirectPath), 1500);
+        } else {
+          setSuccessMsg("Identidade forjada! Verifique seu e-mail para confirmar.");
+          setIsLogin(true);
+        }
       }
     } catch (err: any) {
-      let msg = err.message;
-      if (msg.includes("Email not confirmed")) {
-        msg = "E-mail ainda não confirmado. Verifique sua caixa de entrada ou spam.";
-      }
-      setError(msg || "Erro na conexão com a Arena.");
+      setError(err.message || "Falha na Arena.");
     } finally {
       setLoading(false);
     }
@@ -70,30 +66,35 @@ const Auth: React.FC = () => {
       <div className="w-full max-w-md relative">
         <div className="absolute -top-20 -left-20 w-64 h-64 bg-red-600/10 blur-[100px] pointer-events-none rounded-full" />
         
-        <div className="relative bg-[#0d0d0d] border border-white/5 p-10 rounded-[3.5rem] shadow-2xl space-y-8 backdrop-blur-sm">
+        <div className="relative bg-[#0d0d0d] border border-white/5 p-10 rounded-[3.5rem] shadow-2xl space-y-8 backdrop-blur-md">
           
           <div className="text-center space-y-4">
-            <div className="inline-flex bg-red-600 p-4 rounded-2xl shadow-[0_0_30px_rgba(239,68,68,0.3)] mb-2 rotate-[-4deg]">
+            <div className="inline-flex bg-red-600 p-4 rounded-2xl shadow-[0_0_30px_rgba(239,68,68,0.3)] mb-2 rotate-[-4deg] group-hover:rotate-0 transition-transform">
               <Guitar className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white">
-              {isLogin ? 'Back to Battle' : 'New Identity'}
+              {isLogin ? 'Stage Entrance' : 'New Legend'}
             </h2>
           </div>
 
+          {!isSupabaseConfigured && (
+            <div className="bg-blue-600/5 border border-blue-600/20 p-4 rounded-2xl flex items-center gap-3 text-blue-400 text-[10px] font-black uppercase tracking-widest">
+              <ShieldOff className="w-4 h-4" />
+              <span>Offline Mode: Local Session Active</span>
+            </div>
+          )}
+
           {error && (
-            <div className="bg-red-600/10 border border-red-600/20 p-4 rounded-2xl flex items-start gap-3 text-red-500 text-[11px] font-black uppercase tracking-widest leading-relaxed">
+            <div className="bg-red-600/10 border border-red-600/20 p-4 rounded-2xl flex items-start gap-3 text-red-500 text-[11px] font-black uppercase tracking-widest leading-relaxed animate-shake">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="bg-green-600/10 border border-green-600/20 p-4 rounded-2xl flex flex-col gap-2 text-green-500 text-[11px] font-black uppercase tracking-widest leading-relaxed">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{successMsg}</span>
-              </div>
+            <div className="bg-green-600/10 border border-green-600/20 p-4 rounded-2xl flex items-start gap-3 text-green-500 text-[11px] font-black uppercase tracking-widest leading-relaxed">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{successMsg}</span>
             </div>
           )}
 
@@ -105,10 +106,10 @@ const Auth: React.FC = () => {
                   <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-red-500 transition-colors" />
                   <input 
                     type="text" 
-                    placeholder="EX: SLASH_JR" 
+                    placeholder="EX: STEVE-GUITAR" 
                     value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="w-full bg-black border border-white/5 rounded-2xl py-4.5 pl-14 pr-4 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white"
+                    className="w-full bg-black border border-white/5 rounded-2xl py-4.5 pl-14 pr-4 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white placeholder:text-zinc-800"
                     required={!isLogin}
                   />
                 </div>
@@ -124,14 +125,14 @@ const Auth: React.FC = () => {
                   placeholder="GUERREIRO@ARENA.COM" 
                   value={formData.email}
                   onChange={e => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-black border border-white/5 rounded-2xl py-4.5 pl-14 pr-4 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white"
+                  className="w-full bg-black border border-white/5 rounded-2xl py-4.5 pl-14 pr-4 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white placeholder:text-zinc-800"
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="text-[9px] font-black uppercase text-zinc-600 ml-4 tracking-widest italic">Security Key</label>
+              <label className="text-[9px] font-black uppercase text-zinc-600 ml-4 tracking-widest italic">Passkey</label>
               <div className="relative group">
                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-red-500 transition-colors" />
                 <input 
@@ -139,7 +140,7 @@ const Auth: React.FC = () => {
                   placeholder="••••••••" 
                   value={formData.password}
                   onChange={e => setFormData({...formData, password: e.target.value})}
-                  className="w-full bg-black border border-white/5 rounded-2xl py-4.5 pl-14 pr-4 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white"
+                  className="w-full bg-black border border-white/5 rounded-2xl py-4.5 pl-14 pr-4 text-[11px] font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all text-white placeholder:text-zinc-800"
                   required
                 />
               </div>
@@ -154,7 +155,7 @@ const Auth: React.FC = () => {
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  {isLogin ? 'Entrar na Arena' : 'Confirmar Identidade'}
+                  {isLogin ? 'Acessar Arena' : 'Forjar Identidade'}
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -167,9 +168,9 @@ const Auth: React.FC = () => {
               className="text-[10px] font-black uppercase text-zinc-500 hover:text-white tracking-widest transition-colors flex items-center gap-2 mx-auto group"
             >
               {isLogin ? (
-                <>Sem identidade forjada? <span className="text-red-500 group-hover:underline">Cadastre-se</span></>
+                <>Sem identidade? <span className="text-red-500 group-hover:underline">Cadastre-se</span></>
               ) : (
-                <>Já é um competidor? <span className="text-red-500 group-hover:underline">Login</span></>
+                <>Já é competidor? <span className="text-red-500 group-hover:underline">Stage Entrance</span></>
               )}
             </button>
           </div>
