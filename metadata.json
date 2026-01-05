@@ -1,0 +1,8 @@
+{
+  "name": "Guitar Shred Battles",
+  "description": "A gamified SaaS platform for guitarists to compete in 60-second video battles, featuring live voting, AI-driven technical feedback, and a competitive ranking system.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
