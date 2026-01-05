@@ -25,9 +25,10 @@ export const supabase = isSupabaseConfigured
  */
 const MOCK_SESSION_KEY = 'shred_arena_mock_session';
 const MOCK_USERS_DB = 'shred_arena_users_db';
+const MOCK_VIDEOS_DB = 'shred_arena_videos_db';
 const listeners: Set<(event: string, session: any) => void> = new Set();
 
-const getMockUsers = (): any[] => {
+export const getMockUsers = (): any[] => {
   const saved = localStorage.getItem(MOCK_USERS_DB);
   return saved ? JSON.parse(saved) : [];
 };
@@ -39,6 +40,18 @@ const saveMockUser = (user: any) => {
     users.push(user);
     localStorage.setItem(MOCK_USERS_DB, JSON.stringify(users));
   }
+};
+
+export const getMockVideos = (): any[] => {
+  const saved = localStorage.getItem(MOCK_VIDEOS_DB);
+  return saved ? JSON.parse(saved) : [];
+};
+
+export const saveMockVideo = (video: any) => {
+  const videos = getMockVideos();
+  videos.push(video);
+  localStorage.setItem(MOCK_VIDEOS_DB, JSON.stringify(videos));
+  return video;
 };
 
 const getMockSession = () => {
@@ -133,7 +146,6 @@ export const auth = {
     if (!supabase) {
       listeners.add(callback);
       const mock = getMockSession();
-      // Garantir que o app receba a sessão inicial se ela existir
       if (mock) {
         setTimeout(() => callback('INITIAL_SESSION', mock), 50);
       }
