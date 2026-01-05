@@ -20,7 +20,10 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!)
   : null;
 
-// Função exportada explicitamente para evitar erro de build
+/**
+ * Verifica a conectividade com o Supabase.
+ * Exportado explicitamente como função para evitar erros de resolução de símbolo.
+ */
 export async function checkSupabaseConnection() {
   if (!supabase) return { success: false, message: "Offline" };
   try {
@@ -32,8 +35,9 @@ export async function checkSupabaseConnection() {
   }
 }
 
-// Fix: Wrapped Supabase auth calls with type assertions to resolve "does not exist on type SupabaseAuthClient" errors
-// and added missing getSession and onAuthStateChange helpers.
+/**
+ * Helper unificado para autenticação.
+ */
 export const auth = {
   signUp: async (email: string, pass: string, name: string) => {
     if (!supabase) return { error: { message: "Arena em modo simulação." } };
