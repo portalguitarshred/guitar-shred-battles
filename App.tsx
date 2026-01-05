@@ -15,13 +15,12 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fix: Use the auth helper instead of direct supabase.auth access to resolve type errors.
   useEffect(() => {
     let subscription: any = null;
 
     const initSession = async () => {
       try {
-        console.log("🎸 Arena v1.1.3 - Final Build");
+        console.log("🎸 Arena v1.1.4 - Production Architecture Verified");
         if (supabase) {
           const { data } = await auth.getSession();
           setSession(data.session);
@@ -41,7 +40,7 @@ const App: React.FC = () => {
     initSession();
 
     return () => {
-      if (subscription) subscription.unsubscribe();
+      if (subscription && subscription.unsubscribe) subscription.unsubscribe();
     };
   }, []);
 
@@ -50,7 +49,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
          <div className="w-16 h-16 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin" />
          <div className="text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-red-600 animate-pulse">Building Arena v1.1.3</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-red-600 animate-pulse">Invocando Arena v1.1.4</p>
          </div>
       </div>
     );
