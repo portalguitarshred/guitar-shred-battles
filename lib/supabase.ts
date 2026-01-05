@@ -24,6 +24,7 @@ export const supabase = isSupabaseConfigured
  * Mock Session Management for Simulation Mode
  */
 const MOCK_SESSION_KEY = 'shred_arena_mock_session';
+const listeners: Set<(event: string, session: any) => void> = new Set();
 
 const getMockSession = () => {
   const saved = localStorage.getItem(MOCK_SESSION_KEY);
@@ -33,6 +34,7 @@ const getMockSession = () => {
 const setMockSession = (user: any) => {
   const session = { user, access_token: 'mock_token_' + Date.now(), expires_at: Date.now() + 3600000 };
   localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(session));
+  listeners.forEach(l => l('SIGNED_IN', session));
   return session;
 };
 
@@ -83,14 +85,16 @@ export const auth = {
     if (!supabase) {
       const mock = getMockSession();
       if (mock && mock.user.email === email) {
+        listeners.forEach(l => l('SIGNED_IN', mock));
         return { data: mock, error: null };
       }
-      return { data: { user: null, session: null }, error: { message: "Credenciais inválidas no modo simulação." } };
+      return { data: { user: null, session: null }, error: { message: "Identidade não encontrada. Registre-se primeiro." } };
     }
     return await (supabase.auth as any).signInWithPassword({ email, password: pass });
   },
   signOut: async () => {
     localStorage.removeItem(MOCK_SESSION_KEY);
+    listeners.forEach(l => l('SIGNED_OUT', null));
     if (!supabase) return;
     return await (supabase.auth as any).signOut();
   },
@@ -110,10 +114,10 @@ export const auth = {
   },
   onAuthStateChange: (callback: (event: any, session: any) => void) => {
     if (!supabase) {
-      // No modo simulação, apenas emitimos o estado atual uma vez
+      listeners.add(callback);
       const mock = getMockSession();
-      setTimeout(() => callback('SIGNED_IN', mock), 100);
-      return { data: { subscription: { unsubscribe: () => {} } } };
+      if (mock) setTimeout(() => callback('INITIAL_SESSION', mock), 10);
+      return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } };
     }
     return (supabase.auth as any).onAuthStateChange(callback);
   }
