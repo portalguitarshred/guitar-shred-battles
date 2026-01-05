@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Trophy, Target, Zap, Instagram, Award, Star, Edit3, Play, Loader2, Link2 } from 'lucide-react';
-import { supabase, isSupabaseConfigured, auth } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, auth, getMockVideos } from '../lib/supabase';
 
 const Profile: React.FC = () => {
   const [user, setUser] = useState<any>(null);
@@ -16,7 +16,9 @@ const Profile: React.FC = () => {
         if (data?.user) {
           setUser(data.user);
           
-          // Só tenta buscar vídeos reais se o Supabase estiver ON
+          let allVideos: any[] = [];
+
+          // 1. Busca vídeos reais do Supabase se disponível
           if (isSupabaseConfigured && supabase) {
             const { data: videos } = await supabase
               .from('battle_videos')
@@ -24,8 +26,19 @@ const Profile: React.FC = () => {
               .eq('author_id', data.user.id)
               .order('created_at', { ascending: false });
 
-            if (videos) setUserVideos(videos);
+            if (videos) allVideos = [...videos];
           }
+
+          // 2. Busca vídeos do MockDB (Simulação)
+          const mockVideos = getMockVideos().filter(v => v.author_id === data.user.id);
+          allVideos = [...allVideos, ...mockVideos];
+
+          // Remove duplicatas e ordena por data
+          const uniqueVideos = Array.from(new Set(allVideos.map(v => v.id)))
+            .map(id => allVideos.find(v => v.id === id))
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+          setUserVideos(uniqueVideos);
         }
       } catch (e) {
         console.error("Erro ao carregar perfil:", e);
