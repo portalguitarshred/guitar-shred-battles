@@ -1,76 +1,82 @@
 
-import { createClient } from '@supabase/supabase-js';
+import React, { useEffect, useState } from 'react';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Layout from './components/Layout';
+import Home from './views/Home';
+import BattleDetail from './views/BattleDetail';
+import Upload from './views/Upload';
+import Profile from './views/Profile';
+import Rankings from './views/Rankings';
+import Auth from './views/Auth';
+import Regulation from './views/Regulation';
+import { supabase, auth } from './lib/supabase';
 
-const getEnv = (key: string): string | undefined => {
-  try {
-    const val = (window as any).process?.env?.[key] || (process as any).env?.[key];
-    if (val === `process.env.${key}` || !val) return undefined;
-    return val;
-  } catch (e) {
-    return undefined;
-  }
-};
+const App: React.FC = () => {
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-const supabaseUrl = getEnv('SUPABASE_URL');
-const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
+  useEffect(() => {
+    let subscription: any = null;
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('https://'));
+    const initSession = async () => {
+      try {
+        console.log("🎸 Arena v1.1.4 - Production Architecture Verified");
+        if (supabase) {
+          const { data } = await auth.getSession();
+          setSession(data.session);
 
-export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl!, supabaseAnonKey!)
-  : null;
-
-/**
- * Verifica a conectividade com o Supabase.
- * Exportado explicitamente como função para evitar erros de resolução de símbolo.
- */
-export async function checkSupabaseConnection() {
-  if (!supabase) return { success: false, message: "Offline" };
-  try {
-    const { error } = await supabase.from('battle_videos').select('id').limit(1);
-    if (error && error.code !== 'PGRST116') throw error;
-    return { success: true, message: "Conectado" };
-  } catch (err: any) {
-    return { success: false, message: err.message };
-  }
-}
-
-/**
- * Helper unificado para autenticação.
- */
-export const auth = {
-  signUp: async (email: string, pass: string, name: string) => {
-    if (!supabase) return { error: { message: "Arena em modo simulação." } };
-    return await (supabase.auth as any).signUp({
-      email,
-      password: pass,
-      options: {
-        data: { 
-          display_name: name, 
-          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}` 
-        },
-        emailRedirectTo: window.location.origin
+          const { data: subData } = auth.onAuthStateChange((_event, newSession) => {
+            setSession(newSession);
+          });
+          subscription = subData.subscription;
+        }
+      } catch (e) {
+        console.error("Erro na Arena:", e);
+      } finally {
+        setLoading(false);
       }
-    });
-  },
-  signIn: async (email: string, pass: string) => {
-    if (!supabase) return { error: { message: "Arena em modo simulação." } };
-    return await (supabase.auth as any).signInWithPassword({ email, password: pass });
-  },
-  signOut: async () => {
-    if (!supabase) return;
-    return await (supabase.auth as any).signOut();
-  },
-  getUser: async () => {
-    if (!supabase) return { data: { user: null }, error: null };
-    return await (supabase.auth as any).getUser();
-  },
-  getSession: async () => {
-    if (!supabase) return { data: { session: null }, error: null };
-    return await (supabase.auth as any).getSession();
-  },
-  onAuthStateChange: (callback: (event: any, session: any) => void) => {
-    if (!supabase) return { data: { subscription: null } };
-    return (supabase.auth as any).onAuthStateChange(callback);
+    };
+
+    initSession();
+
+    return () => {
+      if (subscription && subscription.unsubscribe) subscription.unsubscribe();
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
+         <div className="w-16 h-16 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin" />
+         <div className="text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-red-600 animate-pulse">Invocando Arena v1.1.4</p>
+         </div>
+      </div>
+    );
   }
+
+  return (
+    <HashRouter>
+      <Layout user={session?.user}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/battle/:id" element={<BattleDetail />} />
+          <Route 
+            path="/upload" 
+            element={session ? <Upload /> : <Navigate to="/auth?redirect=/upload" />} 
+          />
+          <Route 
+            path="/profile" 
+            element={session ? <Profile /> : <Navigate to="/auth?redirect=/profile" />} 
+          />
+          <Route path="/rankings" element={<Rankings />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/regulation/:id" element={<Regulation />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </HashRouter>
+  );
 };
+
+export default App;
