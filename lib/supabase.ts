@@ -3,10 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 
 const getEnv = (key: string): string | undefined => {
   try {
-    // Tenta ler de várias fontes possíveis para garantir compatibilidade
-    const val = (window as any).process?.env?.[key] || (process as any).env?.[key] || undefined;
-    if (typeof val !== 'string' || val === `process.env.${key}` || !val) return undefined;
-    return val;
+    const val = (window as any).process?.env?.[key];
+    if (typeof val === 'string' && val !== `process.env.${key}` && val.length > 0) {
+      return val;
+    }
+    return undefined;
   } catch (e) {
     return undefined;
   }
@@ -21,9 +22,6 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!)
   : null;
 
-/**
- * Gestão de Persistência Mock para Modo Simulação
- */
 const MOCK_SESSION_KEY = 'shred_arena_mock_session';
 const MOCK_USERS_DB = 'shred_arena_users_db';
 const MOCK_VIDEOS_DB = 'shred_arena_videos_db';
@@ -31,24 +29,25 @@ const MOCK_BATTLES_DB = 'shred_arena_battles_db';
 const listeners: Set<(event: string, session: any) => void> = new Set();
 
 export const getMockUsers = (): any[] => {
-  const saved = localStorage.getItem(MOCK_USERS_DB);
-  return saved ? JSON.parse(saved) : [];
+  try {
+    const saved = localStorage.getItem(MOCK_USERS_DB);
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
 };
 
 const saveMockUser = (user: any) => {
   const users = getMockUsers();
   const index = users.findIndex(u => u.email === user.email);
-  if (index === -1) {
-    users.push(user);
-  } else {
-    users[index] = user;
-  }
+  if (index === -1) users.push(user);
+  else users[index] = user;
   localStorage.setItem(MOCK_USERS_DB, JSON.stringify(users));
 };
 
 export const getMockVideos = (): any[] => {
-  const saved = localStorage.getItem(MOCK_VIDEOS_DB);
-  return saved ? JSON.parse(saved) : [];
+  try {
+    const saved = localStorage.getItem(MOCK_VIDEOS_DB);
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
 };
 
 export const saveMockVideo = (video: any) => {
@@ -59,8 +58,10 @@ export const saveMockVideo = (video: any) => {
 };
 
 export const getMockBattles = (): any[] => {
-  const saved = localStorage.getItem(MOCK_BATTLES_DB);
-  return saved ? JSON.parse(saved) : [];
+  try {
+    const saved = localStorage.getItem(MOCK_BATTLES_DB);
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
 };
 
 const saveMockBattle = (battle: any) => {
@@ -71,14 +72,16 @@ const saveMockBattle = (battle: any) => {
 };
 
 const getMockSession = () => {
-  const saved = localStorage.getItem(MOCK_SESSION_KEY);
-  return saved ? JSON.parse(saved) : null;
+  try {
+    const saved = localStorage.getItem(MOCK_SESSION_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch { return null; }
 };
 
 const setMockSession = (user: any) => {
   const session = { 
     user, 
-    access_token: 'mock_token_' + Date.now(), 
+    access_token: 'mock_' + Math.random().toString(36).substr(2), 
     expires_at: Math.floor(Date.now() / 1000) + 3600 
   };
   localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(session));
@@ -86,25 +89,17 @@ const setMockSession = (user: any) => {
   return session;
 };
 
-/**
- * Verifica a conectividade real com o banco de dados.
- */
 export async function checkSupabaseConnection() {
   if (!supabase) return { success: false, message: "Simulation Mode" };
   try {
     const { error } = await supabase.from('battle_videos').select('id').limit(1);
-    if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
-      return { success: false, message: "Offline" };
-    }
+    if (error) return { success: false, message: "Offline" };
     return { success: true, message: "Arena Online" };
-  } catch (err: any) {
+  } catch {
     return { success: false, message: "Error" };
   }
 }
 
-/**
- * Criação de Batalha (Duelo)
- */
 export const createBattle = async (playerAId: string, playerBId: string) => {
   const endTime = new Date();
   endTime.setHours(endTime.getHours() + 48);
@@ -123,19 +118,10 @@ export const createBattle = async (playerAId: string, playerBId: string) => {
     return { data: payload, error: null };
   }
   
-  return await supabase
-    .from('battles')
-    .insert([payload])
-    .select()
-    .single();
+  return await supabase.from('battles').insert([payload]).select().single();
 };
 
-/**
- * Matchmaking Global (Híbrido: Real + Mock)
- */
 export const runGlobalMatchmaking = async () => {
-  console.group("Arena Matchmaker v1.1.9");
-  
   let allVideos: any[] = [];
   let busyIds = new Set<string>();
 
@@ -146,14 +132,10 @@ export const runGlobalMatchmaking = async () => {
         if (b.player_a_id) busyIds.add(b.player_a_id);
         if (b.player_b_id) busyIds.add(b.player_b_id);
       });
-
       const { data: videos } = await supabase.from('battle_videos').select('id, author_id, author_name').order('created_at', { ascending: true });
       if (videos) allVideos = videos;
-    } catch (e) {
-      console.error("Erro ao buscar dados reais para matchmaking:", e);
-    }
+    } catch (e) { console.error(e); }
   } else {
-    // Modo Simulação: Usar LocalStorage
     const mockBattles = getMockBattles();
     mockBattles.forEach(b => {
       busyIds.add(b.player_a_id);
@@ -163,13 +145,7 @@ export const runGlobalMatchmaking = async () => {
   }
 
   const orphans = allVideos.filter(v => !busyIds.has(v.id));
-  console.log(`Status: ${allVideos.length} vídeos, ${orphans.length} sem duelo.`);
-
-  if (orphans.length < 2) {
-    console.log("Status: Aguardando mais competidores.");
-    console.groupEnd();
-    return { count: 0 };
-  }
+  if (orphans.length < 2) return { count: 0 };
 
   let matchesCreated = 0;
   const assignedInThisRun = new Set<string>();
@@ -183,8 +159,6 @@ export const runGlobalMatchmaking = async () => {
       if (assignedInThisRun.has(videoB.id)) continue;
 
       if (videoA.author_id !== videoB.author_id) {
-        console.log(`⚔️ PAREANDO: ${videoA.author_name} VS ${videoB.author_name}`);
-        
         const { error } = await createBattle(videoA.id, videoB.id);
         if (!error) {
           assignedInThisRun.add(videoA.id);
@@ -195,9 +169,6 @@ export const runGlobalMatchmaking = async () => {
       }
     }
   }
-
-  console.log(`Sucesso: ${matchesCreated} novos duelos criados.`);
-  console.groupEnd();
   return { count: matchesCreated };
 };
 
@@ -205,63 +176,21 @@ export const auth = {
   signUp: async (email: string, pass: string, name: string) => {
     if (!supabase) {
       const users = getMockUsers();
-      if (users.find(u => u.email === email)) {
-        return { data: { user: null, session: null }, error: { message: "E-mail já cadastrado localmente." } };
-      }
-      const mockUser = {
-        id: 'dev-' + Math.random().toString(36).substr(2, 9),
-        email,
-        user_metadata: { 
-          display_name: name, 
-          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}` 
-        }
-      };
+      if (users.find(u => u.email === email)) return { data: { user: null }, error: { message: "Já existe." } };
+      const mockUser = { id: 'm-' + Math.random().toString(36).substr(2), email, user_metadata: { display_name: name } };
       saveMockUser(mockUser);
-      const session = setMockSession(mockUser);
-      return { data: { user: mockUser, session }, error: null };
+      return { data: { user: mockUser, session: setMockSession(mockUser) }, error: null };
     }
-
-    return await supabase.auth.signUp({
-      email,
-      password: pass,
-      options: {
-        data: { 
-          display_name: name, 
-          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}` 
-        },
-        emailRedirectTo: window.location.origin
-      }
-    });
+    return await supabase.auth.signUp({ email, password: pass, options: { data: { display_name: name } } });
   },
-
   signIn: async (email: string, pass: string) => {
     if (!supabase) {
-      const users = getMockUsers();
-      const user = users.find(u => u.email === email);
-      if (user) {
-        const session = setMockSession(user);
-        return { data: { user, session }, error: null };
-      }
-      return { data: { user: null, session: null }, error: { message: "Guerreiro não encontrado na base local. Cadastre-se primeiro!" } };
+      const user = getMockUsers().find(u => u.email === email);
+      if (user) return { data: { user, session: setMockSession(user) }, error: null };
+      return { data: null, error: { message: "Não encontrado." } };
     }
     return await supabase.auth.signInWithPassword({ email, password: pass });
   },
-
-  updateUser: async (attributes: any) => {
-    if (!supabase) {
-      const currentSession = getMockSession();
-      if (!currentSession) return { data: { user: null }, error: { message: "Sessão expirada." } };
-      const updatedUser = {
-        ...currentSession.user,
-        user_metadata: { ...currentSession.user.user_metadata, ...(attributes.data || {}) }
-      };
-      saveMockUser(updatedUser);
-      const session = setMockSession(updatedUser);
-      return { data: { user: updatedUser, session }, error: null };
-    }
-    return await supabase.auth.updateUser(attributes);
-  },
-
   signOut: async () => {
     if (!supabase) {
       localStorage.removeItem(MOCK_SESSION_KEY);
@@ -270,30 +199,31 @@ export const auth = {
     }
     return await supabase.auth.signOut();
   },
-
   getUser: async () => {
-    if (!supabase) {
-      const mock = getMockSession();
-      return { data: { user: mock?.user || null }, error: null };
-    }
+    if (!supabase) return { data: { user: getMockSession()?.user || null }, error: null };
     return await supabase.auth.getUser();
   },
-
   getSession: async () => {
-    if (!supabase) {
-      const mock = getMockSession();
-      return { data: { session: mock }, error: null };
-    }
+    if (!supabase) return { data: { session: getMockSession() }, error: null };
     return await supabase.auth.getSession();
   },
-
   onAuthStateChange: (callback: (event: any, session: any) => void) => {
     if (!supabase) {
       listeners.add(callback);
       const mock = getMockSession();
-      if (mock) setTimeout(() => callback('INITIAL_SESSION', mock), 50);
+      if (mock) setTimeout(() => callback('INITIAL_SESSION', mock), 1);
       return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } };
     }
     return supabase.auth.onAuthStateChange(callback);
+  },
+  updateUser: async (attributes: any) => {
+    if (!supabase) {
+      const session = getMockSession();
+      if (!session) return { error: { message: "Sem sessão." } };
+      const updated = { ...session.user, user_metadata: { ...session.user.user_metadata, ...attributes.data } };
+      saveMockUser(updated);
+      return { data: { user: updated, session: setMockSession(updated) }, error: null };
+    }
+    return await supabase.auth.updateUser(attributes);
   }
 };
