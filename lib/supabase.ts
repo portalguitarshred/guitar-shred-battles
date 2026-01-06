@@ -80,7 +80,6 @@ export async function checkSupabaseConnection() {
   try {
     const { error } = await supabase.from('battle_videos').select('id').limit(1);
     if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
-      console.warn("DB Connection Warning:", error);
       return { success: false, message: "Offline" };
     }
     return { success: true, message: "Arena Online" };
@@ -97,7 +96,7 @@ export const auth = {
     if (!supabase) {
       const users = getMockUsers();
       if (users.find(u => u.email === email)) {
-        return { data: null, error: { message: "E-mail já cadastrado localmente." } };
+        return { data: { user: null, session: null }, error: { message: "E-mail já cadastrado localmente." } };
       }
       const mockUser = {
         id: 'dev-' + Math.random().toString(36).substr(2, 9),
@@ -133,7 +132,7 @@ export const auth = {
         const session = setMockSession(user);
         return { data: { user, session }, error: null };
       }
-      return { data: { user: null, session: null }, error: { message: "Guerreiro não encontrado." } };
+      return { data: { user: null, session: null }, error: { message: "Guerreiro não encontrado na base local. Cadastre-se primeiro!" } };
     }
     return await supabase.auth.signInWithPassword({ email, password: pass });
   },
@@ -141,7 +140,7 @@ export const auth = {
   updateUser: async (attributes: any) => {
     if (!supabase) {
       const currentSession = getMockSession();
-      if (!currentSession) return { data: null, error: { message: "Sessão expirada." } };
+      if (!currentSession) return { data: { user: null }, error: { message: "Sessão expirada." } };
       const updatedUser = {
         ...currentSession.user,
         user_metadata: { ...currentSession.user.user_metadata, ...(attributes.data || {}) }
