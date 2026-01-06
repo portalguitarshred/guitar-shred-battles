@@ -89,59 +89,117 @@ export async function checkSupabaseConnection() {
 }
 
 /**
- * Funções de Duelo e Matchmaking
+ * Criação de Batalha (Duelo)
  */
-export const getAvailableOpponent = async (currentUserId: string) => {
-  if (!supabase) return null;
-
-  // 1. Pegar IDs de vídeos que já estão em batalhas ativas
-  const { data: activeBattles } = await supabase
-    .from('battles')
-    .select('player_a_id, player_b_id')
-    .eq('status', 'active');
-
-  const busyVideoIds = new Set();
-  activeBattles?.forEach(b => {
-    busyVideoIds.add(b.player_a_id);
-    busyVideoIds.add(b.player_b_id);
-  });
-
-  // 2. Buscar vídeos de outros autores que não estão na lista de "ocupados"
-  const { data: candidates, error } = await supabase
-    .from('battle_videos')
-    .select('id, author_id')
-    .neq('author_id', currentUserId)
-    .order('created_at', { ascending: false });
-
-  if (error || !candidates) return null;
-
-  // Retorna o primeiro candidato que não esteja em uma batalha ativa
-  return candidates.find(c => !busyVideoIds.has(c.id)) || null;
-};
-
 export const createBattle = async (playerAId: string, playerBId: string) => {
   if (!supabase) return { error: { message: "Simulação ativa." } };
   
   const endTime = new Date();
-  endTime.setHours(endTime.getHours() + 48); // Duelo dura 48h
+  endTime.setHours(endTime.getHours() + 48);
 
-  const { data, error } = await supabase
+  const payload = {
+    player_a_id: playerAId,
+    player_b_id: playerBId,
+    end_time: endTime.toISOString(),
+    status: 'active'
+  };
+
+  console.log("Arena DB: Tentando criar batalha entre:", playerAId, "e", playerBId);
+  
+  return await supabase
     .from('battles')
-    .insert([{
-      player_a_id: playerAId,
-      player_b_id: playerBId,
-      end_time: endTime.toISOString(),
-      status: 'active'
-    }])
+    .insert([payload])
     .select()
     .single();
+};
 
-  if (error) {
-    console.error("Erro ao criar batalha:", error);
-    return { data: null, error };
+/**
+ * Matchmaking Global (Parea todos os órfãos disponíveis)
+ */
+export const runGlobalMatchmaking = async () => {
+  if (!supabase) return { count: 0 };
+
+  try {
+    console.group("Arena Matchmaker v1.1.8");
+    
+    // 1. Pegar IDs de vídeos que já estão em batalhas ativas ou finalizadas
+    const { data: allBattles } = await supabase
+      .from('battles')
+      .select('player_a_id, player_b_id');
+
+    const busyIds = new Set<string>();
+    allBattles?.forEach(b => {
+      if (b.player_a_id) busyIds.add(b.player_a_id);
+      if (b.player_b_id) busyIds.add(b.player_b_id);
+    });
+
+    // 2. Pegar TODOS os vídeos da base
+    const { data: allVideos, error: videoError } = await supabase
+      .from('battle_videos')
+      .select('id, author_id, author_name')
+      .order('created_at', { ascending: true });
+
+    if (videoError || !allVideos) {
+      console.error("Matchmaker Error: Falha ao buscar vídeos", videoError);
+      console.groupEnd();
+      return { count: 0 };
+    }
+
+    // 3. Identificar os órfãos (vídeos sem batalha)
+    const orphans = allVideos.filter(v => !busyIds.has(v.id));
+    console.log(`Status: ${allVideos.length} vídeos totais, ${orphans.length} órfãos detectados.`);
+
+    if (orphans.length < 2) {
+      console.log("Status: Insuficientes para novo duelo.");
+      console.groupEnd();
+      return { count: 0 };
+    }
+
+    let matchesCreated = 0;
+    const currentBusyIds = new Set(busyIds);
+    const assignedIds = new Set<string>();
+
+    // 4. Algoritmo de Pareamento Ganancioso (Greedy)
+    for (let i = 0; i < orphans.length; i++) {
+      const videoA = orphans[i];
+      if (assignedIds.has(videoA.id)) continue;
+
+      for (let j = i + 1; j < orphans.length; j++) {
+        const videoB = orphans[j];
+        if (assignedIds.has(videoB.id)) continue;
+
+        // Regra: Autores diferentes
+        if (videoA.author_id !== videoB.author_id) {
+          console.log(`⚔️ PAREAMENTO: ${videoA.author_name} VS ${videoB.author_name}`);
+          
+          const { error: battleError } = await createBattle(videoA.id, videoB.id);
+          
+          if (!battleError) {
+            assignedIds.add(videoA.id);
+            assignedIds.add(videoB.id);
+            matchesCreated++;
+            break; // Vídeo A já está em um duelo, sai do loop interno
+          } else {
+            console.error("Erro ao registrar duelo no DB:", battleError);
+          }
+        }
+      }
+    }
+
+    console.log(`Matchmaker: ${matchesCreated} novos duelos criados.`);
+    console.groupEnd();
+    return { count: matchesCreated };
+
+  } catch (err) {
+    console.error("Matchmaker Critical Failure:", err);
+    console.groupEnd();
+    return { count: 0 };
   }
+};
 
-  return { data, error: null };
+export const getAvailableOpponent = async (currentUserId: string) => {
+  await runGlobalMatchmaking();
+  return null; 
 };
 
 /**
@@ -167,6 +225,7 @@ export const auth = {
       return { data: { user: mockUser, session }, error: null };
     }
 
+    // Fix: Corrected the object properties for supabase.auth.signUp to use email and password correctly.
     return await supabase.auth.signUp({
       email,
       password: pass,
