@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Timer, Users, TrendingUp, Sword, Trophy, Play, RefreshCw, Activity, Loader2 } from 'lucide-react';
 import { TOP_RANKING, MOCK_BATTLES } from '../constants';
-import { supabase, isSupabaseConfigured, runGlobalMatchmaking } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, runGlobalMatchmaking, getMockBattles, getMockVideos } from '../lib/supabase';
 
 const Home: React.FC = () => {
   const [battles, setBattles] = useState<any[]>([]);
@@ -11,24 +11,46 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [usingMocks, setUsingMocks] = useState(false);
 
-  const useMocksFallback = () => {
-    console.log("⚠️ Arena: Ativando modo de segurança (Mocks)");
-    const formattedMocks = MOCK_BATTLES.map(b => ({
-      id: b.id, status: b.status, end_time: b.endTime,
-      player_a: { ...b.playerA, author_name: b.playerA.authorName, thumbnail_url: b.playerA.thumbnailUrl },
-      player_b: { ...b.playerB, author_name: b.playerB.authorName, thumbnail_url: b.playerB.thumbnailUrl }
-    }));
-    setBattles(formattedMocks);
+  const loadMockArena = () => {
+    console.log("⚠️ Arena: Carregando modo de simulação...");
+    
+    // Pega as batalhas mock do LocalStorage (criadas pelo matchmaker)
+    const storedBattles = getMockBattles();
+    const allVideos = getMockVideos();
+
+    const dynamicMocks = storedBattles.map(b => {
+      const playerA = allVideos.find(v => v.id === b.player_a_id);
+      const playerB = allVideos.find(v => v.id === b.player_b_id);
+      return {
+        ...b,
+        player_a: playerA,
+        player_b: playerB
+      };
+    }).filter(b => b.player_a && b.player_b);
+
+    // Se não houver dinâmicas, mostra os exemplos fixos
+    if (dynamicMocks.length === 0) {
+      const formattedMocks = MOCK_BATTLES.map(b => ({
+        id: b.id, status: b.status, end_time: b.endTime,
+        player_a: { ...b.playerA, author_name: b.playerA.authorName, thumbnail_url: b.playerA.thumbnailUrl },
+        player_b: { ...b.playerB, author_name: b.playerB.authorName, thumbnail_url: b.playerB.thumbnailUrl }
+      }));
+      setBattles(formattedMocks);
+    } else {
+      setBattles(dynamicMocks);
+    }
+
+    setPendingVideos(allVideos.slice(-5));
     setUsingMocks(true);
     setLoading(false);
   };
 
   const fetchArenaData = async () => {
     try {
-      if (isSupabaseConfigured && supabase) {
-        // Tenta rodar matchmaking automático sempre que a home carrega para garantir duelos frescos
-        await runGlobalMatchmaking();
+      // Tenta rodar matchmaking hibrido em cada load
+      await runGlobalMatchmaking();
 
+      if (isSupabaseConfigured && supabase) {
         const { data: battleData, error: battleError } = await supabase
           .from('battles')
           .select(`
@@ -51,16 +73,16 @@ const Home: React.FC = () => {
           setBattles(battleData);
           setUsingMocks(false);
         } else {
-           useMocksFallback();
+           loadMockArena();
         }
 
         if (recentVideos) setPendingVideos(recentVideos);
       } else {
-        useMocksFallback();
+        loadMockArena();
       }
     } catch (e) {
       console.error("Home Data Error:", e);
-      useMocksFallback();
+      loadMockArena();
     } finally {
       setLoading(false);
     }
