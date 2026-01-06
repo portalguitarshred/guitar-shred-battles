@@ -7,8 +7,12 @@
     <title>Guitar Shred Battles | Arena</title>
     
     <script>
-      // Polyfill mínimo para compatibilidade com bibliotecas que buscam 'process'
-      window.process = { env: { NODE_ENV: 'production' } };
+      // Polyfill de ambiente para evitar erros de 'process is not defined'
+      window.process = { 
+        env: { 
+          NODE_ENV: 'production'
+        } 
+      };
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
