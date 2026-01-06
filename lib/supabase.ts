@@ -3,8 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 
 const getEnv = (key: string): string | undefined => {
   try {
-    const val = (window as any).process?.env?.[key];
-    if (typeof val === 'string' && val !== `process.env.${key}` && val.length > 0) {
+    // Busca exaustiva em possíveis locais de variáveis de ambiente
+    const val = (window as any).process?.env?.[key] || (process as any).env?.[key];
+    if (typeof val === 'string' && val.length > 0 && !val.includes('process.env.')) {
       return val;
     }
     return undefined;
@@ -28,12 +29,18 @@ const MOCK_VIDEOS_DB = 'shred_arena_videos_db';
 const MOCK_BATTLES_DB = 'shred_arena_battles_db';
 const listeners: Set<(event: string, session: any) => void> = new Set();
 
-export const getMockUsers = (): any[] => {
+const safeParse = (key: string) => {
   try {
-    const saved = localStorage.getItem(MOCK_USERS_DB);
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : [];
+  } catch {
+    return [];
+  }
 };
+
+export const getMockUsers = (): any[] => safeParse(MOCK_USERS_DB);
+export const getMockVideos = (): any[] => safeParse(MOCK_VIDEOS_DB);
+export const getMockBattles = (): any[] => safeParse(MOCK_BATTLES_DB);
 
 const saveMockUser = (user: any) => {
   const users = getMockUsers();
@@ -43,25 +50,11 @@ const saveMockUser = (user: any) => {
   localStorage.setItem(MOCK_USERS_DB, JSON.stringify(users));
 };
 
-export const getMockVideos = (): any[] => {
-  try {
-    const saved = localStorage.getItem(MOCK_VIDEOS_DB);
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
-};
-
 export const saveMockVideo = (video: any) => {
   const videos = getMockVideos();
   videos.push(video);
   localStorage.setItem(MOCK_VIDEOS_DB, JSON.stringify(videos));
   return video;
-};
-
-export const getMockBattles = (): any[] => {
-  try {
-    const saved = localStorage.getItem(MOCK_BATTLES_DB);
-    return saved ? JSON.parse(saved) : [];
-  } catch { return []; }
 };
 
 const saveMockBattle = (battle: any) => {
@@ -73,9 +66,11 @@ const saveMockBattle = (battle: any) => {
 
 const getMockSession = () => {
   try {
-    const saved = localStorage.getItem(MOCK_SESSION_KEY);
-    return saved ? JSON.parse(saved) : null;
-  } catch { return null; }
+    const item = localStorage.getItem(MOCK_SESSION_KEY);
+    return item ? JSON.parse(item) : null;
+  } catch {
+    return null;
+  }
 };
 
 const setMockSession = (user: any) => {
@@ -96,7 +91,7 @@ export async function checkSupabaseConnection() {
     if (error) return { success: false, message: "Offline" };
     return { success: true, message: "Arena Online" };
   } catch {
-    return { success: false, message: "Error" };
+    return { success: false, message: "Connection Error" };
   }
 }
 
@@ -134,7 +129,9 @@ export const runGlobalMatchmaking = async () => {
       });
       const { data: videos } = await supabase.from('battle_videos').select('id, author_id, author_name').order('created_at', { ascending: true });
       if (videos) allVideos = videos;
-    } catch (e) { console.error(e); }
+    } catch (e) {
+       console.warn("DB Matchmaking fail, using partial logic", e);
+    }
   } else {
     const mockBattles = getMockBattles();
     mockBattles.forEach(b => {
@@ -176,7 +173,7 @@ export const auth = {
   signUp: async (email: string, pass: string, name: string) => {
     if (!supabase) {
       const users = getMockUsers();
-      if (users.find(u => u.email === email)) return { data: { user: null }, error: { message: "Já existe." } };
+      if (users.find(u => u.email === email)) return { data: { user: null }, error: { message: "E-mail já cadastrado localmente." } };
       const mockUser = { id: 'm-' + Math.random().toString(36).substr(2), email, user_metadata: { display_name: name } };
       saveMockUser(mockUser);
       return { data: { user: mockUser, session: setMockSession(mockUser) }, error: null };
@@ -187,7 +184,7 @@ export const auth = {
     if (!supabase) {
       const user = getMockUsers().find(u => u.email === email);
       if (user) return { data: { user, session: setMockSession(user) }, error: null };
-      return { data: null, error: { message: "Não encontrado." } };
+      return { data: null, error: { message: "Guerreiro não encontrado localmente." } };
     }
     return await supabase.auth.signInWithPassword({ email, password: pass });
   },
@@ -219,7 +216,7 @@ export const auth = {
   updateUser: async (attributes: any) => {
     if (!supabase) {
       const session = getMockSession();
-      if (!session) return { error: { message: "Sem sessão." } };
+      if (!session) return { error: { message: "Sem sessão ativa." } };
       const updated = { ...session.user, user_metadata: { ...session.user.user_metadata, ...attributes.data } };
       saveMockUser(updated);
       return { data: { user: updated, session: setMockSession(updated) }, error: null };
