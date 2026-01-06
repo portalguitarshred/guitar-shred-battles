@@ -4,10 +4,14 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Polyfill básico para process.env para evitar erros de AST no Rollup durante o build
+    'process.env': 'process.env',
+    'global': 'window'
+  },
   build: {
+    target: 'esnext',
     rollupOptions: {
-      // Instruímos o Rollup a NÃO tentar resolver esses pacotes no build,
-      // pois eles serão resolvidos pelo navegador via importmap.
       external: [
         'react',
         'react-dom',
@@ -18,10 +22,16 @@ export default defineConfig({
         '@google/genai',
         '@supabase/supabase-js'
       ],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+          'lucide-react': 'Lucide'
+        }
+      }
     },
   },
   optimizeDeps: {
-    // Evita que o Vite tente pré-empacotar esses módulos no desenvolvimento
     exclude: [
       'react',
       'react-dom',
