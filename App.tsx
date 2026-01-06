@@ -1,15 +1,15 @@
 
 import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './components/Layout';
-import Home from './views/Home';
-import BattleDetail from './views/BattleDetail';
-import Upload from './views/Upload';
-import Profile from './views/Profile';
-import Rankings from './views/Rankings';
-import Auth from './views/Auth';
-import Regulation from './views/Regulation';
-import { auth } from './lib/supabase';
+import Layout from './components/Layout.tsx';
+import Home from './views/Home.tsx';
+import BattleDetail from './views/BattleDetail.tsx';
+import Upload from './views/Upload.tsx';
+import Profile from './views/Profile.tsx';
+import Rankings from './views/Rankings.tsx';
+import Auth from './views/Auth.tsx';
+import Regulation from './views/Regulation.tsx';
+import { auth } from './lib/supabase.ts';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -20,25 +20,22 @@ const App: React.FC = () => {
 
     const initSession = async () => {
       try {
-        console.log("🎸 Arena v1.1.7 - Hybrid Session Sync Active");
+        console.log("🎸 Arena v1.2.0 - Core Restored");
         
-        // Sempre tenta pegar a sessão atual (real ou mock)
         const { data } = await auth.getSession();
         if (data?.session) {
           setSession(data.session);
         }
 
-        // Se inscreve para mudanças de estado (login/logout)
         const { data: subData } = auth.onAuthStateChange((_event, newSession) => {
-          console.log("Arena Auth Change:", _event);
           setSession(newSession);
         });
         
         subscription = subData.subscription;
       } catch (e) {
-        console.error("Erro na Arena:", e);
+        console.error("Arena Initialization Error:", e);
       } finally {
-        setLoading(false);
+        setTimeout(() => setLoading(false), 300);
       }
     };
 
