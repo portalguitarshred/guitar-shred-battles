@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Polyfill básico para process.env para evitar erros de AST no Rollup durante o build
-    'process.env': 'process.env',
+    // Define específico para evitar erros de parser do Rollup
+    'process.env.NODE_ENV': JSON.stringify('production'),
     'global': 'window'
   },
   build: {
