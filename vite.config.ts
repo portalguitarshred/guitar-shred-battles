@@ -7,8 +7,6 @@ export default defineConfig({
     target: 'esnext',
     outDir: 'dist',
     rollupOptions: {
-      // Informamos ao Rollup que estes pacotes não devem ser incluídos no bundle.
-      // Eles serão resolvidos em tempo de execução pelo importmap no index.html.
       external: [
         'react',
         'react-dom',
@@ -18,7 +16,14 @@ export default defineConfig({
         'lucide-react',
         '@google/genai',
         '@supabase/supabase-js'
-      ]
+      ],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+          'react-dom/client': 'ReactDOM'
+        }
+      }
     }
   },
   server: {
