@@ -2,9 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 
 const getEnv = (key: string): string | undefined => {
   try {
-    const val = (window as any).process?.env?.[key];
-    if (typeof val === 'string' && val.length > 0 && !val.includes('process.env.')) {
-      return val;
+    // Tenta primeiro o padrão Vite, depois o polyfill do browser
+    const envValue = import.meta.env[key] || (window as any).process?.env?.[key];
+    
+    if (typeof envValue === 'string' && envValue.length > 0 && !envValue.includes('process.env.')) {
+      return envValue;
     }
     return undefined;
   } catch (e) {
@@ -12,8 +14,8 @@ const getEnv = (key: string): string | undefined => {
   }
 };
 
-const supabaseUrl = getEnv('SUPABASE_URL');
-const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
+const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('SUPABASE_ANON_KEY');
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('https://'));
 
@@ -177,7 +179,7 @@ export const auth = {
       saveMockUser(mockUser);
       return { data: { user: mockUser, session: setMockSession(mockUser) }, error: null };
     }
-    return await supabase.auth.signUp({ email, password: pass, options: { data: { display_name: name } } });
+    return await (supabase.auth as any).signUp({ email, password: pass, options: { data: { display_name: name } } });
   },
   signIn: async (email: string, pass: string) => {
     if (!supabase) {
@@ -185,22 +187,22 @@ export const auth = {
       if (user) return { data: { user, session: setMockSession(user) }, error: null };
       return { data: null, error: { message: "Guerreiro não encontrado." } };
     }
-    return await supabase.auth.signInWithPassword({ email, password: pass });
+    return await (supabase.auth as any).signInWithPassword({ email, password: pass });
   },
   signOut: async () => {
     if (!supabase) {
       localStorage.removeItem(MOCK_SESSION_KEY);
       return { error: null };
     }
-    return await supabase.auth.signOut();
+    return await (supabase.auth as any).signOut();
   },
   getUser: async () => {
     if (!supabase) return { data: { user: getMockSession()?.user || null }, error: null };
-    return await supabase.auth.getUser();
+    return await (supabase.auth as any).getUser();
   },
   getSession: async () => {
     if (!supabase) return { data: { session: getMockSession() }, error: null };
-    return await supabase.auth.getSession();
+    return await (supabase.auth as any).getSession();
   },
   onAuthStateChange: (callback: (event: any, session: any) => void) => {
     if (!supabase) {
@@ -208,7 +210,7 @@ export const auth = {
       if (mock) setTimeout(() => callback('INITIAL_SESSION', mock), 1);
       return { data: { subscription: { unsubscribe: () => {} } } };
     }
-    return supabase.auth.onAuthStateChange(callback);
+    return (supabase.auth as any).onAuthStateChange(callback);
   },
   updateUser: async (attributes: any) => {
     if (!supabase) {
@@ -218,6 +220,6 @@ export const auth = {
       saveMockUser(updated);
       return { data: { user: updated, session: setMockSession(updated) }, error: null };
     }
-    return await supabase.auth.updateUser(attributes);
+    return await (supabase.auth as any).updateUser(attributes);
   }
 };
