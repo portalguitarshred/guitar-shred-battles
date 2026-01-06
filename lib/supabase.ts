@@ -3,8 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 
 const getEnv = (key: string): string | undefined => {
   try {
-    const val = (window as any).process?.env?.[key] || (process as any).env?.[key];
-    if (val === `process.env.${key}` || !val) return undefined;
+    // Tenta ler de várias fontes possíveis para garantir compatibilidade
+    const val = (window as any).process?.env?.[key] || (process as any).env?.[key] || undefined;
+    if (typeof val !== 'string' || val === `process.env.${key}` || !val) return undefined;
     return val;
   } catch (e) {
     return undefined;
