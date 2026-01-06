@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Guitar Shred Battles | Arena</title>
 
-    <!-- Pode manter temporariamente -->
+    <!-- Tailwind via CDN (ok por enquanto) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- Fonte -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap"
       rel="stylesheet"
@@ -15,6 +16,7 @@
 
     <style>
       :root { color-scheme: dark; }
+
       body {
         font-family: 'Inter', sans-serif;
         background-color: #050505;
@@ -23,24 +25,34 @@
         height: 100vh;
         overflow: hidden;
       }
+
       #root {
         height: 100vh;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
       }
+
       #root::-webkit-scrollbar { width: 4px; }
       #root::-webkit-scrollbar-track { background: #050505; }
-      #root::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
-      #root::-webkit-scrollbar-thumb:hover { background: #ef4444; }
-      .shred-glow { filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.4)); }
+      #root::-webkit-scrollbar-thumb {
+        background: #1a1a1a;
+        border-radius: 10px;
+      }
+      #root::-webkit-scrollbar-thumb:hover {
+        background: #ef4444;
+      }
+
+      .shred-glow {
+        filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.4));
+      }
     </style>
   </head>
 
   <body>
     <div id="root"></div>
 
-    <!-- ATENÇÃO: use o entry real do seu app -->
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- ENTRY REAL DO APP -->
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
