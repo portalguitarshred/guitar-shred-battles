@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Youtube, CheckCircle2, Link as LinkIcon, Play, Loader2, Brain, Activity, ShieldCheck, Zap } from 'lucide-react';
+import { Youtube, CheckCircle2, Link as LinkIcon, Play, Loader2, Brain, Activity, ShieldCheck, Zap, Sword, Radar } from 'lucide-react';
 import { Category, SkillLevel, Style } from '../types';
-import { supabase, isSupabaseConfigured, auth, saveMockVideo } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, auth, saveMockVideo, createBattle } from '../lib/supabase';
 
 const Upload: React.FC = () => {
   const navigate = useNavigate();
@@ -13,6 +13,7 @@ const Upload: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [validationStage, setValidationStage] = useState(0);
+  const [matchStatus, setMatchStatus] = useState<'searching' | 'found' | 'none'>('searching');
   
   const [form, setForm] = useState({
     category: Category.SHRED,
@@ -43,20 +44,21 @@ const Upload: React.FC = () => {
       "Escaneando Frequências...",
       "Validando Sincronia Rítmica...",
       "Analisando BPM e Pitch...",
-      "Identidade Confirmada na Arena!"
+      "Realtime Matchmaking..."
     ];
 
     for (let i = 0; i < stages.length; i++) {
       setValidationStage(i);
-      await new Promise(r => setTimeout(r, 1200));
+      await new Promise(r => setTimeout(r, 1500));
     }
 
     const authorName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0];
     
     try {
+      let finalVideoId = '';
+
       if (isSupabaseConfigured && supabase) {
-        // No Supabase Real, deixamos o banco gerar o UUID automaticamente
-        const { error: videoError } = await supabase
+        const { data: videoData, error: videoError } = await supabase
           .from('battle_videos')
           .insert([{
             author_id: currentUser.id,
@@ -67,12 +69,36 @@ const Upload: React.FC = () => {
             style: form.style,
             skill_level: form.skillLevel,
             votes: 0
-          }]);
+          }])
+          .select()
+          .single();
 
         if (videoError) throw videoError;
+        finalVideoId = videoData.id;
+
+        // --- MATCHMAKING REAL ---
+        // Tenta achar um vídeo recente que não seja do próprio usuário
+        const { data: opponent } = await supabase
+          .from('battle_videos')
+          .select('id')
+          .neq('author_id', currentUser.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (opponent) {
+           await createBattle(finalVideoId, opponent.id);
+           setMatchStatus('found');
+        } else {
+           // Se não houver ninguém, vamos criar um "Bot" apenas para demonstração se você quiser ver seu vídeo agora
+           // Em um app real, aqui o usuário ficaria na lista de espera.
+           // Mas para sua experiência de teste, vamos procurar qualquer vídeo ou o usuário ficaria em pendente.
+           setMatchStatus('none');
+        }
+
       } else {
-        // Modo Simulação (Gera ID manual apenas localmente)
-        saveMockVideo({
+        // Modo Simulação
+        const mockVideo = saveMockVideo({
           id: 'v-' + Math.random().toString(36).substr(2, 9),
           author_id: currentUser.id,
           author_name: authorName,
@@ -84,10 +110,12 @@ const Upload: React.FC = () => {
           votes: 0,
           created_at: new Date().toISOString()
         });
+        finalVideoId = mockVideo.id;
+        setMatchStatus('none');
       }
 
-      setStep(3); // Sucesso
-      setTimeout(() => navigate('/profile'), 2000);
+      setStep(3); // Sucesso Final
+      setTimeout(() => navigate('/'), 2500); // Redireciona para Home para ver o duelo
     } catch (error: any) {
       alert("Erro ao publicar: " + error.message);
       setStep(2);
@@ -189,12 +217,12 @@ const Upload: React.FC = () => {
              <div className="relative">
                 <div className="absolute inset-0 bg-red-600 blur-3xl opacity-20 animate-pulse" />
                 <div className="relative w-24 h-24 bg-red-600/10 border border-red-600/30 rounded-3xl flex items-center justify-center">
-                   <Brain className="w-12 h-12 text-red-600 animate-bounce" />
+                   {validationStage === 3 ? <Radar className="w-12 h-12 text-red-600 animate-spin" /> : <Brain className="w-12 h-12 text-red-600 animate-bounce" />}
                 </div>
              </div>
              <div className="space-y-3">
                 <h2 className="text-4xl font-black italic uppercase text-white tracking-tighter">
-                   {["Escaneando...", "Validando...", "Analisando...", "Sincronizando..."][validationStage]}
+                   {["Escaneando...", "Validando...", "Analisando...", "Buscando Oponente..."][validationStage]}
                 </h2>
                 <div className="w-64 h-1.5 bg-zinc-900 rounded-full overflow-hidden mx-auto border border-white/5">
                    <div 
@@ -211,16 +239,20 @@ const Upload: React.FC = () => {
 
         {step === 3 && (
           <div className="py-24 text-center space-y-10 animate-in zoom-in-95 duration-500">
-             <div className="w-24 h-24 bg-green-500 rounded-[2rem] flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(34,197,94,0.3)] rotate-12">
-                <CheckCircle2 className="w-12 h-12 text-black" />
+             <div className="w-24 h-24 bg-red-600 rounded-[2rem] flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(239,68,68,0.3)] rotate-12">
+                <Sword className="w-12 h-12 text-white" />
              </div>
              <div className="space-y-2">
-                <h2 className="text-5xl font-black italic uppercase text-white tracking-tighter">No Palco!</h2>
-                <p className="text-zinc-500 font-black uppercase tracking-widest text-[10px]">Sua performance foi aceita pela Arena. Redirecionando...</p>
+                <h2 className="text-5xl font-black italic uppercase text-white tracking-tighter">
+                   {matchStatus === 'found' ? 'Duelo Iniciado!' : 'Aguardando Desafiante'}
+                </h2>
+                <p className="text-zinc-500 font-black uppercase tracking-widest text-[10px]">
+                   {matchStatus === 'found' ? 'Encontramos um oponente à altura. A Arena está pegando fogo!' : 'Seu vídeo foi postado. O Matchmaking está procurando um oponente.'}
+                </p>
              </div>
              <div className="inline-flex items-center gap-2 bg-white/5 px-6 py-2 rounded-full border border-white/5">
                 <Zap className="w-3 h-3 text-yellow-500 fill-current" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">+500 XP DE ESTREIA</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">STATUS: EM COMPETIÇÃO</span>
              </div>
           </div>
         )}
