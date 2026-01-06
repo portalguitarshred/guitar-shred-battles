@@ -1,55 +1,73 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Timer, Users, TrendingUp, Sword, Trophy, Play, Gift } from 'lucide-react';
+import { Timer, Users, TrendingUp, Sword, Trophy, Play, RefreshCw, Activity, Loader2 } from 'lucide-react';
 import { TOP_RANKING, MOCK_BATTLES } from '../constants';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, runGlobalMatchmaking } from '../lib/supabase';
 
 const Home: React.FC = () => {
   const [battles, setBattles] = useState<any[]>([]);
+  const [pendingVideos, setPendingVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [usingMocks, setUsingMocks] = useState(false);
+
+  const useMocksFallback = () => {
+    console.log("⚠️ Arena: Ativando modo de segurança (Mocks)");
+    const formattedMocks = MOCK_BATTLES.map(b => ({
+      id: b.id, status: b.status, end_time: b.endTime,
+      player_a: { ...b.playerA, author_name: b.playerA.authorName, thumbnail_url: b.playerA.thumbnailUrl },
+      player_b: { ...b.playerB, author_name: b.playerB.authorName, thumbnail_url: b.playerB.thumbnailUrl }
+    }));
+    setBattles(formattedMocks);
+    setUsingMocks(true);
+    setLoading(false);
+  };
+
+  const fetchArenaData = async () => {
+    try {
+      if (isSupabaseConfigured && supabase) {
+        // Tenta rodar matchmaking automático sempre que a home carrega para garantir duelos frescos
+        await runGlobalMatchmaking();
+
+        const { data: battleData, error: battleError } = await supabase
+          .from('battles')
+          .select(`
+            id, status, end_time,
+            player_a:battle_videos!player_a_id(*),
+            player_b:battle_videos!player_b_id(*)
+          `)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
+
+        const { data: recentVideos } = await supabase
+          .from('battle_videos')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (battleError) throw battleError;
+
+        if (battleData && battleData.length > 0) {
+          setBattles(battleData);
+          setUsingMocks(false);
+        } else {
+           useMocksFallback();
+        }
+
+        if (recentVideos) setPendingVideos(recentVideos);
+      } else {
+        useMocksFallback();
+      }
+    } catch (e) {
+      console.error("Home Data Error:", e);
+      useMocksFallback();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchBattles = async () => {
-      try {
-        if (isSupabaseConfigured && supabase) {
-          const { data, error } = await supabase
-            .from('battles')
-            .select(`
-              id,
-              status,
-              end_time,
-              player_a:battle_videos!player_a_id(*),
-              player_b:battle_videos!player_b_id(*)
-            `)
-            .eq('status', 'active')
-            .limit(5);
-
-          if (!error && data && data.length > 0) {
-            setBattles(data);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (e) {
-        console.error("Erro ao buscar do Supabase, usando Mocks:", e);
-      }
-      
-      // Fallback para Mocks se o Supabase falhar ou não houver dados
-      // Transformando MOCK_BATTLES para o formato esperado pela view
-      const formattedMocks = MOCK_BATTLES.map(b => ({
-        id: b.id,
-        status: b.status,
-        end_time: b.endTime,
-        player_a: { ...b.playerA, author_name: b.playerA.authorName, thumbnail_url: b.playerA.thumbnailUrl },
-        player_b: { ...b.playerB, author_name: b.playerB.authorName, thumbnail_url: b.playerB.thumbnailUrl }
-      }));
-      
-      setBattles(formattedMocks);
-      setLoading(false);
-    };
-
-    fetchBattles();
+    fetchArenaData();
   }, []);
 
   return (
@@ -65,17 +83,20 @@ const Home: React.FC = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                 <span className="text-[10px] font-black uppercase tracking-widest text-white">Season 04 Open</span>
              </div>
-             {!isSupabaseConfigured && (
-               <span className="text-[10px] font-black uppercase tracking-widest text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-full">Modo Demo (Offline)</span>
+             {usingMocks && (
+               <span className="text-[10px] font-black uppercase tracking-widest text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-full flex items-center gap-2 border border-yellow-500/20">
+                 <RefreshCw className="w-3 h-3" />
+                 Simulação
+               </span>
              )}
           </div>
 
-          <h1 className="text-6xl md:text-8xl font-black italic uppercase leading-[0.85] tracking-tighter">
+          <h1 className="text-6xl md:text-8xl font-black italic uppercase leading-[0.85] tracking-tighter text-white">
             SHRED <br /> <span className="text-red-600">OR DIE.</span>
           </h1>
           
           <p className="text-zinc-400 text-lg font-medium leading-relaxed max-w-lg">
-            A arena onde a técnica encontra a glória. Desafie os melhores guitarristas do mundo em duelos de 60 segundos validados por IA.
+            A arena onde a técnica encontra a glória. Desafie os melhores guitarristas do mundo em duelos validados por IA.
           </p>
 
           <div className="flex flex-wrap items-center gap-4 pt-4">
@@ -84,10 +105,6 @@ const Home: React.FC = () => {
                  <Sword className="w-5 h-5 fill-black" /> Entrar na Arena
               </span>
               <div className="absolute inset-0 bg-red-600 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-            </Link>
-
-            <Link to="/rankings" className="bg-white/5 backdrop-blur-md border border-white/10 text-white px-8 py-5 rounded-2xl font-black uppercase italic tracking-widest hover:bg-white/10 transition-all flex items-center gap-3">
-              <Trophy className="w-5 h-5 text-yellow-500" /> Ranking
             </Link>
           </div>
         </div>
@@ -101,93 +118,94 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* GRANDE PRÊMIO SECTION */}
-      <section className="relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-[#111] to-black border border-white/5 p-8 md:p-12 shadow-2xl">
-        <div className="absolute top-0 right-0 w-[500px] h-full bg-red-600/5 blur-[120px] pointer-events-none" />
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          <div className="lg:col-span-7 space-y-8">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-yellow-500">
-                <Gift className="w-6 h-6" />
-                <span className="text-xs font-black uppercase tracking-[0.5em] text-zinc-500">Season Grand Prize</span>
-              </div>
-              <h2 className="text-5xl md:text-7xl font-black italic uppercase leading-[0.9] tracking-tighter text-white">
-                O VENCEDOR VAI <br />
-                <span className="text-red-600">GANHAR ESTA GUITARRA.</span>
-              </h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-8 pt-4">
-               <div className="bg-white/5 px-4 py-2 rounded-lg border border-white/10 text-white font-black italic tracking-tighter text-sm">GUITAR MASTER BRAND</div>
-            </div>
-          </div>
-          <div className="lg:col-span-5 relative flex items-center justify-center">
-             <div className="relative z-10 bg-white/5 border border-white/10 rounded-[4rem] p-10 backdrop-blur-3xl shadow-2xl">
-                <img src="https://images.unsplash.com/photo-1550985616-10810253b84d?q=80&w=800&auto=format&fit=crop" className="w-full max-w-[300px] h-auto rounded-3xl rotate-12 hover:rotate-6 transition-all duration-700" alt="Prize Guitar" />
-             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* LIVE BATTLES LIST */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
         <div className="lg:col-span-8 space-y-8">
-          <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-4">
-            <TrendingUp className="text-red-600 w-8 h-8" /> Live Duels
-          </h2>
+          <div className="flex justify-between items-center px-2">
+            <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-4 text-white">
+              <TrendingUp className="text-red-600 w-8 h-8" /> Duelos Ativos ({battles.length})
+            </h2>
+          </div>
 
           <div className="grid grid-cols-1 gap-12">
             {loading ? (
-              <div className="h-64 flex items-center justify-center text-zinc-500 font-black uppercase italic animate-pulse">Carregando Arena...</div>
-            ) : battles.map((battle) => (
+              <div className="h-64 flex flex-col items-center justify-center space-y-4">
+                 <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
+                 <span className="text-zinc-500 font-black uppercase italic text-[10px] tracking-[0.3em]">Sincronizando Arena...</span>
+              </div>
+            ) : battles.length > 0 ? battles.map((battle) => (
               <Link key={battle.id} to={`/battle/${battle.id}`} className="group block">
                 <div className="relative bg-[#0d0d0d] border border-white/5 rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:border-red-600/40 shadow-2xl min-h-[350px]">
                   <div className="flex flex-col md:flex-row h-full">
-                    {/* Player A */}
                     <div className="relative md:w-1/2 overflow-hidden border-b md:border-b-0 md:border-r border-white/5">
-                      <img src={battle.player_a.thumbnail_url} className="w-full h-full object-cover grayscale group-hover:grayscale-0 opacity-60 group-hover:opacity-100 transition-all duration-1000" />
+                      <img src={battle.player_a?.thumbnail_url} className="w-full h-full object-cover grayscale group-hover:grayscale-0 opacity-60 group-hover:opacity-100 transition-all duration-1000" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                       <div className="absolute bottom-8 left-10">
-                        <h4 className="text-3xl font-black italic uppercase text-white tracking-tighter">{battle.player_a.author_name}</h4>
-                        <span className="text-[10px] font-black text-red-500 uppercase">{battle.player_a.style}</span>
+                        <h4 className="text-3xl font-black italic uppercase text-white tracking-tighter">{battle.player_a?.author_name}</h4>
+                        <span className="text-[10px] font-black text-red-500 uppercase">{battle.player_a?.style}</span>
                       </div>
                     </div>
-
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
                       <div className="bg-[#050505] w-16 h-16 rounded-full border-4 border-zinc-900 flex items-center justify-center shadow-2xl">
                          <span className="text-lg font-black italic text-red-600">VS</span>
                       </div>
                     </div>
-
-                    {/* Player B */}
                     <div className="relative md:w-1/2 overflow-hidden">
-                      <img src={battle.player_b.thumbnail_url} className="w-full h-full object-cover grayscale group-hover:grayscale-0 opacity-60 group-hover:opacity-100 transition-all duration-1000" />
+                      <img src={battle.player_b?.thumbnail_url} className="w-full h-full object-cover grayscale group-hover:grayscale-0 opacity-60 group-hover:opacity-100 transition-all duration-1000" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                       <div className="absolute bottom-8 right-10 text-right">
-                        <h4 className="text-3xl font-black italic uppercase text-white tracking-tighter">{battle.player_b.author_name}</h4>
-                        <span className="text-[10px] font-black text-zinc-400 uppercase">{battle.player_b.style}</span>
+                        <h4 className="text-3xl font-black italic uppercase text-white tracking-tighter">{battle.player_b?.author_name}</h4>
+                        <span className="text-[10px] font-black text-zinc-400 uppercase">{battle.player_b?.style}</span>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 flex items-center justify-between px-6 text-[10px] font-black uppercase text-zinc-500">
-                   <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1.5"><Timer className="w-3 h-3 text-red-600" /> Ativo</span>
-                      <span className="flex items-center gap-1.5"><Users className="w-3 h-3" /> {(battle.player_a.votes || 0) + (battle.player_b.votes || 0)} Votos</span>
-                   </div>
-                   <div className="flex items-center gap-2 text-red-600 group-hover:text-white transition-colors">
-                      <Play className="w-3 h-3 fill-current" />
-                      <span>Ver Duelo</span>
-                   </div>
-                </div>
               </Link>
-            ))}
+            )) : (
+              <div className="h-64 flex flex-col items-center justify-center text-zinc-600 border border-dashed border-white/5 rounded-[3rem]">
+                 <p className="font-black uppercase italic text-sm">Nenhuma batalha encontrada</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Hall of Fame Sidebar */}
         <div className="lg:col-span-4 space-y-8">
-          <div className="bg-[#0d0d0d] border border-white/5 rounded-[2.5rem] p-6 space-y-6">
-            <h3 className="text-2xl font-black uppercase italic tracking-tighter flex items-center gap-3">
+          <div className="bg-[#0d0d0d] border border-white/5 rounded-[2.5rem] p-8 space-y-8">
+            <div className="space-y-1">
+               <h3 className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-3 text-white">
+                 <Activity className="text-green-500 w-5 h-5" /> Novos Desafiantes
+               </h3>
+               <p className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Últimos Vídeos Postados</p>
+            </div>
+
+            <div className="space-y-6">
+               {pendingVideos.length > 0 ? pendingVideos.map((vid) => (
+                 <div key={vid.id} className="flex items-center gap-4 group">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 flex-shrink-0">
+                       <img src={vid.thumbnail_url} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                       <p className="font-black italic uppercase text-white truncate text-sm">{vid.author_name}</p>
+                       <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-red-600/10 text-red-500 rounded border border-red-600/20">{vid.category}</span>
+                          <span className="text-[8px] font-black uppercase text-zinc-500 tracking-tighter">{vid.style}</span>
+                       </div>
+                    </div>
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                 </div>
+               )) : (
+                 <div className="text-center py-6 text-zinc-600 border border-dashed border-white/5 rounded-2xl">
+                    <p className="text-[10px] font-black uppercase tracking-widest">A arena está calma...</p>
+                 </div>
+               )}
+            </div>
+
+            <Link to="/upload" className="block w-full text-center py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase italic tracking-widest hover:bg-white hover:text-black transition-all">
+               Enviar Meu Desafio
+            </Link>
+          </div>
+
+          <div className="bg-[#0d0d0d] border border-white/5 rounded-[2.5rem] p-8 space-y-6">
+            <h3 className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-3 text-white">
               <Trophy className="text-yellow-500 w-6 h-6" /> Hall of Fame
             </h3>
             <div className="space-y-4">
