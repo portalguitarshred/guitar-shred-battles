@@ -1,17 +1,13 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guitar Shred Battles | Arena</title>
-    
     <script>
-      // Polyfill de ambiente seguro para bibliotecas ESM
       window.process = { env: { NODE_ENV: 'production' } };
       window.global = window;
     </script>
-
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
     <style>
@@ -30,15 +26,12 @@
             display: flex;
             flex-direction: column;
         }
-        
         #root::-webkit-scrollbar { width: 4px; }
         #root::-webkit-scrollbar-track { background: #050505; }
         #root::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
         #root::-webkit-scrollbar-thumb:hover { background: #ef4444; }
-
         .shred-glow { filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.4)); }
     </style>
-
     <script type="importmap">
 {
   "imports": {
