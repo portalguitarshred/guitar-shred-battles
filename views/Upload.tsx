@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Youtube, CheckCircle2, Link as LinkIcon, Play, Loader2, Brain, Activity, ShieldCheck, Zap, Sword, Radar } from 'lucide-react';
 import { Category, SkillLevel, Style } from '../types';
-import { supabase, isSupabaseConfigured, auth, saveMockVideo, createBattle } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, auth, saveMockVideo, createBattle, getAvailableOpponent } from '../lib/supabase';
 
 const Upload: React.FC = () => {
   const navigate = useNavigate();
@@ -38,7 +38,7 @@ const Upload: React.FC = () => {
     if (!videoId || !currentUser) return;
     
     setLoading(true);
-    setStep(4); // Vai para tela de validação
+    setStep(4); // Vai para tela de validação (Matchmaking)
 
     const stages = [
       "Escaneando Frequências...",
@@ -49,7 +49,7 @@ const Upload: React.FC = () => {
 
     for (let i = 0; i < stages.length; i++) {
       setValidationStage(i);
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 1200));
     }
 
     const authorName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0];
@@ -58,6 +58,7 @@ const Upload: React.FC = () => {
       let finalVideoId = '';
 
       if (isSupabaseConfigured && supabase) {
+        // 1. Inserir o vídeo
         const { data: videoData, error: videoError } = await supabase
           .from('battle_videos')
           .insert([{
@@ -76,23 +77,21 @@ const Upload: React.FC = () => {
         if (videoError) throw videoError;
         finalVideoId = videoData.id;
 
-        // --- MATCHMAKING REAL ---
-        // Tenta achar um vídeo recente que não seja do próprio usuário
-        const { data: opponent } = await supabase
-          .from('battle_videos')
-          .select('id')
-          .neq('author_id', currentUser.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // 2. Tentar Matchmaking Real
+        console.log("Iniciando busca por oponente para vídeo:", finalVideoId);
+        const opponent = await getAvailableOpponent(currentUser.id);
 
         if (opponent) {
-           await createBattle(finalVideoId, opponent.id);
-           setMatchStatus('found');
+           console.log("Oponente encontrado:", opponent.id);
+           const { error: battleError } = await createBattle(finalVideoId, opponent.id);
+           if (!battleError) {
+              setMatchStatus('found');
+           } else {
+              console.error("Erro ao parear vídeos:", battleError);
+              setMatchStatus('none');
+           }
         } else {
-           // Se não houver ninguém, vamos criar um "Bot" apenas para demonstração se você quiser ver seu vídeo agora
-           // Em um app real, aqui o usuário ficaria na lista de espera.
-           // Mas para sua experiência de teste, vamos procurar qualquer vídeo ou o usuário ficaria em pendente.
+           console.log("Nenhum oponente disponível no momento.");
            setMatchStatus('none');
         }
 
@@ -115,8 +114,9 @@ const Upload: React.FC = () => {
       }
 
       setStep(3); // Sucesso Final
-      setTimeout(() => navigate('/'), 2500); // Redireciona para Home para ver o duelo
+      setTimeout(() => navigate('/'), 3000); 
     } catch (error: any) {
+      console.error("Critical Upload Error:", error);
       alert("Erro ao publicar: " + error.message);
       setStep(2);
     } finally {
@@ -247,7 +247,7 @@ const Upload: React.FC = () => {
                    {matchStatus === 'found' ? 'Duelo Iniciado!' : 'Aguardando Desafiante'}
                 </h2>
                 <p className="text-zinc-500 font-black uppercase tracking-widest text-[10px]">
-                   {matchStatus === 'found' ? 'Encontramos um oponente à altura. A Arena está pegando fogo!' : 'Seu vídeo foi postado. O Matchmaking está procurando um oponente.'}
+                   {matchStatus === 'found' ? 'Encontramos um oponente à altura. A Arena está pegando fogo!' : 'Seu vídeo foi postado. O Matchmaking está procurando um oponente disponível.'}
                 </p>
              </div>
              <div className="inline-flex items-center gap-2 bg-white/5 px-6 py-2 rounded-full border border-white/5">
