@@ -89,20 +89,59 @@ export async function checkSupabaseConnection() {
 }
 
 /**
- * Funções de Duelo
+ * Funções de Duelo e Matchmaking
  */
+export const getAvailableOpponent = async (currentUserId: string) => {
+  if (!supabase) return null;
+
+  // 1. Pegar IDs de vídeos que já estão em batalhas ativas
+  const { data: activeBattles } = await supabase
+    .from('battles')
+    .select('player_a_id, player_b_id')
+    .eq('status', 'active');
+
+  const busyVideoIds = new Set();
+  activeBattles?.forEach(b => {
+    busyVideoIds.add(b.player_a_id);
+    busyVideoIds.add(b.player_b_id);
+  });
+
+  // 2. Buscar vídeos de outros autores que não estão na lista de "ocupados"
+  const { data: candidates, error } = await supabase
+    .from('battle_videos')
+    .select('id, author_id')
+    .neq('author_id', currentUserId)
+    .order('created_at', { ascending: false });
+
+  if (error || !candidates) return null;
+
+  // Retorna o primeiro candidato que não esteja em uma batalha ativa
+  return candidates.find(c => !busyVideoIds.has(c.id)) || null;
+};
+
 export const createBattle = async (playerAId: string, playerBId: string) => {
   if (!supabase) return { error: { message: "Simulação ativa." } };
   
   const endTime = new Date();
   endTime.setHours(endTime.getHours() + 48); // Duelo dura 48h
 
-  return await supabase.from('battles').insert([{
-    player_a_id: playerAId,
-    player_b_id: playerBId,
-    end_time: endTime.toISOString(),
-    status: 'active'
-  }]).select().single();
+  const { data, error } = await supabase
+    .from('battles')
+    .insert([{
+      player_a_id: playerAId,
+      player_b_id: playerBId,
+      end_time: endTime.toISOString(),
+      status: 'active'
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Erro ao criar batalha:", error);
+    return { data: null, error };
+  }
+
+  return { data, error: null };
 };
 
 /**
