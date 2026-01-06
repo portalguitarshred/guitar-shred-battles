@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 const getEnv = (key: string): string | undefined => {
   try {
-    const val = (window as any).process?.env?.[key] || (process as any).env?.[key];
+    // Acesso seguro via window para evitar ReferenceError
+    const val = (window as any).process?.env?.[key];
     if (typeof val === 'string' && val.length > 0 && !val.includes('process.env.')) {
       return val;
     }
@@ -121,8 +122,8 @@ export const runGlobalMatchmaking = async () => {
   let allVideos: any[] = [];
   let busyIds = new Set<string>();
 
-  if (supabase) {
-    try {
+  try {
+    if (supabase) {
       const { data: battles } = await supabase.from('battles').select('player_a_id, player_b_id');
       battles?.forEach(b => {
         if (b.player_a_id) busyIds.add(b.player_a_id);
@@ -130,44 +131,45 @@ export const runGlobalMatchmaking = async () => {
       });
       const { data: videos } = await supabase.from('battle_videos').select('id, author_id, author_name').order('created_at', { ascending: true });
       if (videos) allVideos = videos;
-    } catch (e) {
-       console.warn("Matchmaking query fail", e);
+    } else {
+      const mockBattles = getMockBattles();
+      mockBattles.forEach(b => {
+        busyIds.add(b.player_a_id);
+        busyIds.add(b.player_b_id);
+      });
+      allVideos = getMockVideos();
     }
-  } else {
-    const mockBattles = getMockBattles();
-    mockBattles.forEach(b => {
-      busyIds.add(b.player_a_id);
-      busyIds.add(b.player_b_id);
-    });
-    allVideos = getMockVideos();
-  }
 
-  const orphans = allVideos.filter(v => v && !busyIds.has(v.id));
-  if (orphans.length < 2) return { count: 0 };
+    const orphans = allVideos.filter(v => v && !busyIds.has(v.id));
+    if (orphans.length < 2) return { count: 0 };
 
-  let matchesCreated = 0;
-  const assignedInThisRun = new Set<string>();
+    let matchesCreated = 0;
+    const assignedInThisRun = new Set<string>();
 
-  for (let i = 0; i < orphans.length; i++) {
-    const videoA = orphans[i];
-    if (assignedInThisRun.has(videoA.id)) continue;
+    for (let i = 0; i < orphans.length; i++) {
+      const videoA = orphans[i];
+      if (assignedInThisRun.has(videoA.id)) continue;
 
-    for (let j = i + 1; j < orphans.length; j++) {
-      const videoB = orphans[j];
-      if (assignedInThisRun.has(videoB.id)) continue;
+      for (let j = i + 1; j < orphans.length; j++) {
+        const videoB = orphans[j];
+        if (assignedInThisRun.has(videoB.id)) continue;
 
-      if (videoA.author_id !== videoB.author_id) {
-        const { error } = await createBattle(videoA.id, videoB.id);
-        if (!error) {
-          assignedInThisRun.add(videoA.id);
-          assignedInThisRun.add(videoB.id);
-          matchesCreated++;
-          break; 
+        if (videoA.author_id !== videoB.author_id) {
+          const { error } = await createBattle(videoA.id, videoB.id);
+          if (!error) {
+            assignedInThisRun.add(videoA.id);
+            assignedInThisRun.add(videoB.id);
+            matchesCreated++;
+            break; 
+          }
         }
       }
     }
+    return { count: matchesCreated };
+  } catch (err) {
+    console.error("Matchmaking Error:", err);
+    return { count: 0 };
   }
-  return { count: matchesCreated };
 };
 
 export const auth = {
