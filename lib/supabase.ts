@@ -26,6 +26,7 @@ export const supabase = isSupabaseConfigured
 const MOCK_SESSION_KEY = 'shred_arena_mock_session';
 const MOCK_USERS_DB = 'shred_arena_users_db';
 const MOCK_VIDEOS_DB = 'shred_arena_videos_db';
+const MOCK_BATTLES_DB = 'shred_arena_battles_db';
 const listeners: Set<(event: string, session: any) => void> = new Set();
 
 export const getMockUsers = (): any[] => {
@@ -54,6 +55,18 @@ export const saveMockVideo = (video: any) => {
   videos.push(video);
   localStorage.setItem(MOCK_VIDEOS_DB, JSON.stringify(videos));
   return video;
+};
+
+export const getMockBattles = (): any[] => {
+  const saved = localStorage.getItem(MOCK_BATTLES_DB);
+  return saved ? JSON.parse(saved) : [];
+};
+
+const saveMockBattle = (battle: any) => {
+  const battles = getMockBattles();
+  battles.push(battle);
+  localStorage.setItem(MOCK_BATTLES_DB, JSON.stringify(battles));
+  return battle;
 };
 
 const getMockSession = () => {
@@ -92,19 +105,22 @@ export async function checkSupabaseConnection() {
  * Criação de Batalha (Duelo)
  */
 export const createBattle = async (playerAId: string, playerBId: string) => {
-  if (!supabase) return { error: { message: "Simulação ativa." } };
-  
   const endTime = new Date();
   endTime.setHours(endTime.getHours() + 48);
 
   const payload = {
+    id: 'b-' + Math.random().toString(36).substr(2, 9),
     player_a_id: playerAId,
     player_b_id: playerBId,
     end_time: endTime.toISOString(),
-    status: 'active'
+    status: 'active',
+    created_at: new Date().toISOString()
   };
 
-  console.log("Arena DB: Tentando criar batalha entre:", playerAId, "e", playerBId);
+  if (!supabase) {
+    saveMockBattle(payload);
+    return { data: payload, error: null };
+  }
   
   return await supabase
     .from('battles')
@@ -114,97 +130,76 @@ export const createBattle = async (playerAId: string, playerBId: string) => {
 };
 
 /**
- * Matchmaking Global (Parea todos os órfãos disponíveis)
+ * Matchmaking Global (Híbrido: Real + Mock)
  */
 export const runGlobalMatchmaking = async () => {
-  if (!supabase) return { count: 0 };
+  console.group("Arena Matchmaker v1.1.9");
+  
+  let allVideos: any[] = [];
+  let busyIds = new Set<string>();
 
-  try {
-    console.group("Arena Matchmaker v1.1.8");
-    
-    // 1. Pegar IDs de vídeos que já estão em batalhas ativas ou finalizadas
-    const { data: allBattles } = await supabase
-      .from('battles')
-      .select('player_a_id, player_b_id');
+  if (supabase) {
+    try {
+      const { data: battles } = await supabase.from('battles').select('player_a_id, player_b_id');
+      battles?.forEach(b => {
+        if (b.player_a_id) busyIds.add(b.player_a_id);
+        if (b.player_b_id) busyIds.add(b.player_b_id);
+      });
 
-    const busyIds = new Set<string>();
-    allBattles?.forEach(b => {
-      if (b.player_a_id) busyIds.add(b.player_a_id);
-      if (b.player_b_id) busyIds.add(b.player_b_id);
+      const { data: videos } = await supabase.from('battle_videos').select('id, author_id, author_name').order('created_at', { ascending: true });
+      if (videos) allVideos = videos;
+    } catch (e) {
+      console.error("Erro ao buscar dados reais para matchmaking:", e);
+    }
+  } else {
+    // Modo Simulação: Usar LocalStorage
+    const mockBattles = getMockBattles();
+    mockBattles.forEach(b => {
+      busyIds.add(b.player_a_id);
+      busyIds.add(b.player_b_id);
     });
+    allVideos = getMockVideos();
+  }
 
-    // 2. Pegar TODOS os vídeos da base
-    const { data: allVideos, error: videoError } = await supabase
-      .from('battle_videos')
-      .select('id, author_id, author_name')
-      .order('created_at', { ascending: true });
+  const orphans = allVideos.filter(v => !busyIds.has(v.id));
+  console.log(`Status: ${allVideos.length} vídeos, ${orphans.length} sem duelo.`);
 
-    if (videoError || !allVideos) {
-      console.error("Matchmaker Error: Falha ao buscar vídeos", videoError);
-      console.groupEnd();
-      return { count: 0 };
-    }
-
-    // 3. Identificar os órfãos (vídeos sem batalha)
-    const orphans = allVideos.filter(v => !busyIds.has(v.id));
-    console.log(`Status: ${allVideos.length} vídeos totais, ${orphans.length} órfãos detectados.`);
-
-    if (orphans.length < 2) {
-      console.log("Status: Insuficientes para novo duelo.");
-      console.groupEnd();
-      return { count: 0 };
-    }
-
-    let matchesCreated = 0;
-    const currentBusyIds = new Set(busyIds);
-    const assignedIds = new Set<string>();
-
-    // 4. Algoritmo de Pareamento Ganancioso (Greedy)
-    for (let i = 0; i < orphans.length; i++) {
-      const videoA = orphans[i];
-      if (assignedIds.has(videoA.id)) continue;
-
-      for (let j = i + 1; j < orphans.length; j++) {
-        const videoB = orphans[j];
-        if (assignedIds.has(videoB.id)) continue;
-
-        // Regra: Autores diferentes
-        if (videoA.author_id !== videoB.author_id) {
-          console.log(`⚔️ PAREAMENTO: ${videoA.author_name} VS ${videoB.author_name}`);
-          
-          const { error: battleError } = await createBattle(videoA.id, videoB.id);
-          
-          if (!battleError) {
-            assignedIds.add(videoA.id);
-            assignedIds.add(videoB.id);
-            matchesCreated++;
-            break; // Vídeo A já está em um duelo, sai do loop interno
-          } else {
-            console.error("Erro ao registrar duelo no DB:", battleError);
-          }
-        }
-      }
-    }
-
-    console.log(`Matchmaker: ${matchesCreated} novos duelos criados.`);
-    console.groupEnd();
-    return { count: matchesCreated };
-
-  } catch (err) {
-    console.error("Matchmaker Critical Failure:", err);
+  if (orphans.length < 2) {
+    console.log("Status: Aguardando mais competidores.");
     console.groupEnd();
     return { count: 0 };
   }
+
+  let matchesCreated = 0;
+  const assignedInThisRun = new Set<string>();
+
+  for (let i = 0; i < orphans.length; i++) {
+    const videoA = orphans[i];
+    if (assignedInThisRun.has(videoA.id)) continue;
+
+    for (let j = i + 1; j < orphans.length; j++) {
+      const videoB = orphans[j];
+      if (assignedInThisRun.has(videoB.id)) continue;
+
+      if (videoA.author_id !== videoB.author_id) {
+        console.log(`⚔️ PAREANDO: ${videoA.author_name} VS ${videoB.author_name}`);
+        
+        const { error } = await createBattle(videoA.id, videoB.id);
+        if (!error) {
+          assignedInThisRun.add(videoA.id);
+          assignedInThisRun.add(videoB.id);
+          matchesCreated++;
+          break; 
+        }
+      }
+    }
+  }
+
+  console.log(`Sucesso: ${matchesCreated} novos duelos criados.`);
+  console.groupEnd();
+  return { count: matchesCreated };
 };
 
-export const getAvailableOpponent = async (currentUserId: string) => {
-  await runGlobalMatchmaking();
-  return null; 
-};
-
-/**
- * Helper de Autenticação Híbrida
- */
 export const auth = {
   signUp: async (email: string, pass: string, name: string) => {
     if (!supabase) {
@@ -225,7 +220,6 @@ export const auth = {
       return { data: { user: mockUser, session }, error: null };
     }
 
-    // Fix: Corrected the object properties for supabase.auth.signUp to use email and password correctly.
     return await supabase.auth.signUp({
       email,
       password: pass,
