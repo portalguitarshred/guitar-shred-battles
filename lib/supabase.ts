@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 
 const getEnv = (key: string): string | undefined => {
   try {
-    // Busca exaustiva em possíveis locais de variáveis de ambiente
     const val = (window as any).process?.env?.[key] || (process as any).env?.[key];
     if (typeof val === 'string' && val.length > 0 && !val.includes('process.env.')) {
       return val;
@@ -32,7 +31,9 @@ const listeners: Set<(event: string, session: any) => void> = new Set();
 const safeParse = (key: string) => {
   try {
     const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : [];
+    if (!item) return [];
+    const parsed = JSON.parse(item);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -130,7 +131,7 @@ export const runGlobalMatchmaking = async () => {
       const { data: videos } = await supabase.from('battle_videos').select('id, author_id, author_name').order('created_at', { ascending: true });
       if (videos) allVideos = videos;
     } catch (e) {
-       console.warn("DB Matchmaking fail, using partial logic", e);
+       console.warn("Matchmaking query fail", e);
     }
   } else {
     const mockBattles = getMockBattles();
@@ -141,7 +142,7 @@ export const runGlobalMatchmaking = async () => {
     allVideos = getMockVideos();
   }
 
-  const orphans = allVideos.filter(v => !busyIds.has(v.id));
+  const orphans = allVideos.filter(v => v && !busyIds.has(v.id));
   if (orphans.length < 2) return { count: 0 };
 
   let matchesCreated = 0;
