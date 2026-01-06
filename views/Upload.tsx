@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Youtube, CheckCircle2, Link as LinkIcon, Play, Loader2, Brain, Activity, ShieldCheck, Zap, Sword, Radar } from 'lucide-react';
 import { Category, SkillLevel, Style } from '../types';
-import { supabase, isSupabaseConfigured, auth, saveMockVideo, createBattle, getAvailableOpponent } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, auth, saveMockVideo, createBattle, runGlobalMatchmaking } from '../lib/supabase';
 
 const Upload: React.FC = () => {
   const navigate = useNavigate();
@@ -38,13 +38,13 @@ const Upload: React.FC = () => {
     if (!videoId || !currentUser) return;
     
     setLoading(true);
-    setStep(4); // Vai para tela de validação (Matchmaking)
+    setStep(4);
 
     const stages = [
       "Escaneando Frequências...",
       "Validando Sincronia Rítmica...",
       "Analisando BPM e Pitch...",
-      "Realtime Matchmaking..."
+      "Realtime Matchmaking Global..."
     ];
 
     for (let i = 0; i < stages.length; i++) {
@@ -58,7 +58,6 @@ const Upload: React.FC = () => {
       let finalVideoId = '';
 
       if (isSupabaseConfigured && supabase) {
-        // 1. Inserir o vídeo
         const { data: videoData, error: videoError } = await supabase
           .from('battle_videos')
           .insert([{
@@ -77,26 +76,12 @@ const Upload: React.FC = () => {
         if (videoError) throw videoError;
         finalVideoId = videoData.id;
 
-        // 2. Tentar Matchmaking Real
-        console.log("Iniciando busca por oponente para vídeo:", finalVideoId);
-        const opponent = await getAvailableOpponent(currentUser.id);
-
-        if (opponent) {
-           console.log("Oponente encontrado:", opponent.id);
-           const { error: battleError } = await createBattle(finalVideoId, opponent.id);
-           if (!battleError) {
-              setMatchStatus('found');
-           } else {
-              console.error("Erro ao parear vídeos:", battleError);
-              setMatchStatus('none');
-           }
-        } else {
-           console.log("Nenhum oponente disponível no momento.");
-           setMatchStatus('none');
-        }
+        // --- MATCHMAKING GLOBAL ---
+        // Agora o servidor tenta parear todos os órfãos
+        const { count } = await runGlobalMatchmaking();
+        setMatchStatus(count > 0 ? 'found' : 'none');
 
       } else {
-        // Modo Simulação
         const mockVideo = saveMockVideo({
           id: 'v-' + Math.random().toString(36).substr(2, 9),
           author_id: currentUser.id,
@@ -113,7 +98,7 @@ const Upload: React.FC = () => {
         setMatchStatus('none');
       }
 
-      setStep(3); // Sucesso Final
+      setStep(3);
       setTimeout(() => navigate('/'), 3000); 
     } catch (error: any) {
       console.error("Critical Upload Error:", error);
@@ -253,7 +238,7 @@ const Upload: React.FC = () => {
              <div className="inline-flex items-center gap-2 bg-white/5 px-6 py-2 rounded-full border border-white/5">
                 <Zap className="w-3 h-3 text-yellow-500 fill-current" />
                 <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">STATUS: EM COMPETIÇÃO</span>
-             </div>
+             </div>a
           </div>
         )}
       </div>
