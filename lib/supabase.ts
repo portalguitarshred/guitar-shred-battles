@@ -89,6 +89,23 @@ export async function checkSupabaseConnection() {
 }
 
 /**
+ * Funções de Duelo
+ */
+export const createBattle = async (playerAId: string, playerBId: string) => {
+  if (!supabase) return { error: { message: "Simulação ativa." } };
+  
+  const endTime = new Date();
+  endTime.setHours(endTime.getHours() + 48); // Duelo dura 48h
+
+  return await supabase.from('battles').insert([{
+    player_a_id: playerAId,
+    player_b_id: playerBId,
+    end_time: endTime.toISOString(),
+    status: 'active'
+  }]).select().single();
+};
+
+/**
  * Helper de Autenticação Híbrida
  */
 export const auth = {
