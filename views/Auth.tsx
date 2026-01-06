@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Guitar, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, CheckCircle2, ShieldOff } from 'lucide-react';
+import { Guitar, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, CheckCircle2, ShieldOff, Info } from 'lucide-react';
 import { auth, isSupabaseConfigured } from '../lib/supabase';
 
 const Auth: React.FC = () => {
@@ -34,28 +34,39 @@ const Auth: React.FC = () => {
     try {
       if (isLogin) {
         const result = await auth.signIn(formData.email, formData.password);
-        if (result.error) throw result.error;
+        
+        if (result.error) {
+          throw result.error;
+        }
+
         if (result.data?.session) {
-          // Pequeno delay para efeito dramático de login
-          setTimeout(() => navigate(redirectPath), 500);
+          setSuccessMsg("Acesso autorizado! Carregando Arena...");
+          setTimeout(() => navigate(redirectPath), 800);
+        } else if (result.data?.user) {
+          // Caso comum no Supabase: E-mail não confirmado
+          setError("Sua conta existe, mas o e-mail ainda não foi confirmado. Verifique sua caixa de entrada.");
+        } else {
+          throw new Error("Falha inesperada ao tentar entrar.");
         }
       } else {
         if (!formData.name) throw new Error("Escolha um Nome de Artista.");
-        if (formData.password.length < 6) throw new Error("Senha muito curta (min 6 carac).");
+        if (formData.password.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres.");
         
         const result = await auth.signUp(formData.email, formData.password, formData.name);
+        
         if (result.error) throw result.error;
         
         if (!isSupabaseConfigured) {
-          setSuccessMsg("Perfil Simulador Ativado! Você será logado automaticamente.");
+          setSuccessMsg("Identidade local criada! Você será logado agora.");
           setTimeout(() => navigate(redirectPath), 1500);
         } else {
-          setSuccessMsg("Identidade forjada! Verifique seu e-mail para confirmar.");
+          setSuccessMsg("Cadastro realizado! Enviamos um link de confirmação para o seu e-mail.");
           setIsLogin(true);
         }
       }
     } catch (err: any) {
-      setError(err.message || "Falha na Arena.");
+      console.error("Auth Error:", err);
+      setError(err.message || "Erro crítico na Arena. Verifique suas credenciais.");
     } finally {
       setLoading(false);
     }
@@ -77,10 +88,10 @@ const Auth: React.FC = () => {
             </h2>
           </div>
 
-          {!isSupabaseConfigured && (
-            <div className="bg-blue-600/5 border border-blue-600/20 p-4 rounded-2xl flex items-center gap-3 text-blue-400 text-[10px] font-black uppercase tracking-widest">
-              <ShieldOff className="w-4 h-4" />
-              <span>Offline Mode: Local Session Active</span>
+          {!isSupabaseConfigured && isLogin && (
+            <div className="bg-blue-600/5 border border-blue-600/20 p-4 rounded-2xl flex items-start gap-3 text-blue-400 text-[9px] font-black uppercase tracking-widest leading-tight">
+              <Info className="w-4 h-4 flex-shrink-0" />
+              <span>Dica: No modo local, você precisa se cadastrar antes de logar.</span>
             </div>
           )}
 
