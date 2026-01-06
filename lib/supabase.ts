@@ -21,7 +21,7 @@ export const supabase = isSupabaseConfigured
   : null;
 
 /**
- * Mock Persistence Management for Simulation Mode
+ * Gestão de Persistência Mock para Modo Simulação
  */
 const MOCK_SESSION_KEY = 'shred_arena_mock_session';
 const MOCK_USERS_DB = 'shred_arena_users_db';
@@ -73,32 +73,32 @@ const setMockSession = (user: any) => {
 };
 
 /**
- * Verifica a conectividade com o Supabase.
+ * Verifica a conectividade real com o banco de dados.
  */
 export async function checkSupabaseConnection() {
-  if (!supabase) return { success: false, message: "Modo Simulação" };
+  if (!supabase) return { success: false, message: "Simulation Mode" };
   try {
     const { error } = await supabase.from('battle_videos').select('id').limit(1);
-    if (error && error.code !== 'PGRST116') throw error;
-    return { success: true, message: "Conectado" };
+    if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
+      console.warn("DB Connection Warning:", error);
+      return { success: false, message: "Offline" };
+    }
+    return { success: true, message: "Arena Online" };
   } catch (err: any) {
-    return { success: false, message: err.message };
+    return { success: false, message: "Error" };
   }
 }
 
 /**
- * Helper unificado para autenticação (Híbrido)
- * Este objeto abstrai se estamos salvando localmente ou no banco real.
+ * Helper de Autenticação Híbrida
  */
 export const auth = {
   signUp: async (email: string, pass: string, name: string) => {
     if (!supabase) {
-      // MOCK SIGNUP
       const users = getMockUsers();
       if (users.find(u => u.email === email)) {
-        return { data: null, error: { message: "Este e-mail já está em uso na arena local." } };
+        return { data: null, error: { message: "E-mail já cadastrado localmente." } };
       }
-      
       const mockUser = {
         id: 'dev-' + Math.random().toString(36).substr(2, 9),
         email,
@@ -112,7 +112,6 @@ export const auth = {
       return { data: { user: mockUser, session }, error: null };
     }
 
-    // REAL SUPABASE SIGNUP
     return await supabase.auth.signUp({
       email,
       password: pass,
@@ -128,42 +127,29 @@ export const auth = {
 
   signIn: async (email: string, pass: string) => {
     if (!supabase) {
-      // MOCK SIGNIN
       const users = getMockUsers();
       const user = users.find(u => u.email === email);
       if (user) {
-        // Em um sistema real haveria verificação de senha, aqui simulamos sucesso.
         const session = setMockSession(user);
-        // Fix: Changed the mock return structure to match Supabase's { data: { user, session }, error } structure
         return { data: { user, session }, error: null };
       }
-      return { data: { user: null, session: null }, error: { message: "Identidade não encontrada. Verifique seu e-mail ou cadastre-se." } };
+      return { data: { user: null, session: null }, error: { message: "Guerreiro não encontrado." } };
     }
-
-    // REAL SUPABASE SIGNIN
     return await supabase.auth.signInWithPassword({ email, password: pass });
   },
 
   updateUser: async (attributes: any) => {
     if (!supabase) {
-      // MOCK UPDATE
       const currentSession = getMockSession();
       if (!currentSession) return { data: null, error: { message: "Sessão expirada." } };
-      
       const updatedUser = {
         ...currentSession.user,
-        user_metadata: {
-          ...currentSession.user.user_metadata,
-          ...(attributes.data || {})
-        }
+        user_metadata: { ...currentSession.user.user_metadata, ...(attributes.data || {}) }
       };
-      
       saveMockUser(updatedUser);
       const session = setMockSession(updatedUser);
       return { data: { user: updatedUser, session }, error: null };
     }
-
-    // REAL SUPABASE UPDATE
     return await supabase.auth.updateUser(attributes);
   },
 
@@ -196,10 +182,7 @@ export const auth = {
     if (!supabase) {
       listeners.add(callback);
       const mock = getMockSession();
-      if (mock) {
-        // Notifica o estado inicial com um pequeno delay
-        setTimeout(() => callback('INITIAL_SESSION', mock), 50);
-      }
+      if (mock) setTimeout(() => callback('INITIAL_SESSION', mock), 50);
       return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } };
     }
     return supabase.auth.onAuthStateChange(callback);
