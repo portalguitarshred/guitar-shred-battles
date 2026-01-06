@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guitar Shred Battles | v1.1.8</title>
+    <title>Guitar Shred Battles | v1.1.9</title>
     
     <script>
       // Polyfill de ambiente para compatibilidade com bibliotecas que esperam Node.js process
@@ -13,7 +13,7 @@
       window.addEventListener('error', function(e) {
         console.error('Arena Runtime Error:', e);
         if (e.message && (e.message.includes('Script error') || e.message.includes('importmap') || e.message.includes('ReactDOM'))) {
-           document.body.innerHTML = '<div style="background:#050505;color:#ef4444;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;text-align:center;padding:20px;"><h1>⚠️ ARENA CRASHED</h1><p>Erro Crítico de Sincronização (v1.1.8).</p><button onclick="location.reload(true)" style="background:#ef4444;color:white;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:20px;">REBOOT SYSTEM</button></div>';
+           document.body.innerHTML = '<div style="background:#050505;color:#ef4444;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;text-align:center;padding:20px;"><h1>⚠️ ARENA CRASHED</h1><p>Erro Crítico de Sincronização (v1.1.9).</p><button onclick="location.reload(true)" style="background:#ef4444;color:white;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:20px;">REBOOT SYSTEM</button></div>';
         }
       });
     </script>
