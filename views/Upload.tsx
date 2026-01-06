@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Youtube, CheckCircle2, Link as LinkIcon, Play, Loader2, Brain, Activity, ShieldCheck, Zap, Sword, Radar } from 'lucide-react';
