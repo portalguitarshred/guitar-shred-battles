@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Garante que referências a process.env não causem crash no navegador
+    'process.env': 'window.process.env',
+    'global': 'window'
+  },
   build: {
     target: 'esnext',
     outDir: 'dist',
@@ -16,14 +21,7 @@ export default defineConfig({
         'lucide-react',
         '@google/genai',
         '@supabase/supabase-js'
-      ],
-      output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-          'react-dom/client': 'ReactDOM'
-        }
-      }
+      ]
     }
   },
   server: {
